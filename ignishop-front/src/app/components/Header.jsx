@@ -10,8 +10,14 @@ import { useUser } from './../context/UserContext';
 
 export default function Header() {
   const { user, refreshUser } = useUser();
+  const [localUser, setLocalUser] = useState(user); // Локальное состояние для немедленного обновления
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const router = useRouter();
+
+  // Синхронизация локального состояния с контекстом
+  useEffect(() => {
+    setLocalUser(user);
+  }, [user]);
 
   const handleSearch = (query) => {
     router.push(`/search?q=${encodeURIComponent(query)}`);
@@ -30,8 +36,9 @@ export default function Header() {
           setShowLogoutConfirm(false);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          refreshUser();
-          window.location.reload();
+          refreshUser(); // Обновляем состояние в контексте
+          setLocalUser(null); // Немедленно обновляем локальное состояние
+          router.push('/login'); // Перенаправляем на страницу авторизации
         })
         .catch((err) => {
           console.error('Ошибка при выходе:', err);
@@ -54,7 +61,7 @@ export default function Header() {
           <SearchBar onSearch={handleSearch} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {user && (
+          {localUser && (
             <>
               <Link
                 href="/cart"
@@ -82,10 +89,10 @@ export default function Header() {
               </Link>
             </>
           )}
-          {user ? (
+          {localUser ? (
             <>
-              <span style={{ fontSize: '14px' }}>Привет, {user.name}</span>
-              {user.is_admin ? (
+              <span style={{ fontSize: '14px' }}>Привет, {localUser.name}</span>
+              {localUser.is_admin ? (
                 <button
                   onClick={handleAdminPanel}
                   style={{

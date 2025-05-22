@@ -1,3 +1,4 @@
+// app/admin/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -75,20 +76,20 @@ export default function AdminPanel() {
   // Обработка загрузки изображения для нового товара
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === 'image/jpeg') {
+    if (file && ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
       setNewProduct((prev) => ({ ...prev, image: file.name }));
     } else {
-      alert('Пожалуйста, выберите файл в формате .jpg');
+      alert('Пожалуйста, выберите файл в формате .jpg, .jpeg, .png, .gif или .webp');
     }
   };
 
   // Обработка загрузки изображения для редактируемого товара
   const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === 'image/jpeg') {
+    if (file && ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
       setEditedProduct((prev) => ({ ...prev, image: file.name }));
     } else {
-      alert('Пожалуйста, выберите файл в формате .jpg');
+      alert('Пожалуйста, выберите файл в формате .jpg, .jpeg, .png, .gif или .webp');
     }
   };
 
@@ -297,10 +298,10 @@ export default function AdminPanel() {
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Изображение (.jpg):</label>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Изображение (.jpg, .jpeg, .png, .gif, .webp):</label>
             <input
               type="file"
-              accept="image/jpeg"
+              accept="image/jpeg,image/png,image/gif,image/webp"
               onChange={handleImageUpload}
               style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
             />
@@ -412,10 +413,10 @@ export default function AdminPanel() {
                   required
                 />
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Изображение (.jpg):</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Изображение (.jpg, .jpeg, .png, .gif, .webp):</label>
                   <input
                     type="file"
-                    accept="image/jpeg"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
                     onChange={handleEditImageUpload}
                     style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
                   />
