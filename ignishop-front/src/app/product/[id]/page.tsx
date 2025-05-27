@@ -1,4 +1,3 @@
-// app/product/[id]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,10 +5,20 @@ import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useCartStore } from '../../../store/cartStore';
 
+interface Category {
+  key: string;
+  name: string;
+}
+
+interface Subcategory {
+  name: string;
+}
+
 export interface Product {
   id: number;
   name: string;
-  category: string;
+  category: Category;
+  subcategory: Subcategory | null;
   description: string;
   price: number | string;
   stock: number;
@@ -95,7 +104,8 @@ export default function ProductDetail() {
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>{product.name}</h1>
           <p style={{ fontSize: '16px', color: '#666666', marginBottom: '16px' }}>
-            Категория: {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
+            Категория: {product.category.name}
+            {product.subcategory && ` / ${product.subcategory.name}`}
           </p>
           <p style={{ fontSize: '18px', color: '#333333', marginBottom: '16px' }}>{product.description}</p>
           <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF6200', marginBottom: '16px' }}>

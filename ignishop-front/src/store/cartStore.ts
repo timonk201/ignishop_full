@@ -33,7 +33,6 @@ export const useCartStore = create<CartStore>((set, get) => ({
   addToCart: async (product: Product) => {
     const existingItem = get().cart.find((item) => item.id === product.id);
     if (existingItem) {
-      // Товар уже в корзине, не добавляем
       return false;
     }
 
@@ -44,7 +43,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
         return { cart: state.cart };
       }
       const updatedCart = [...state.cart, { ...product, quantity: newQuantity }];
-      localStorage.setItem('cart', JSON.stringify(updatedCart));
+      // Сохраняем в localStorage только на клиенте
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+      }
       return { cart: updatedCart };
     });
 
@@ -69,7 +71,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
       const updatedCart = state.cart.map((item) =>
         item.id === id ? { ...item, quantity: Math.max(1, Math.min(quantity, maxQuantity)) } : item
       );
-      localStorage.setItem('cart', JSON.stringify(updatedCart));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+      }
       return { cart: updatedCart };
     });
     const item = get().cart.find((item) => item.id === id);
@@ -80,7 +84,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
   removeFromCart: async (id: number) => {
     set((state) => {
       const updatedCart = state.cart.filter((item) => item.id !== id);
-      localStorage.setItem('cart', JSON.stringify(updatedCart));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+      }
       return { cart: updatedCart };
     });
     await axios.delete(`http://localhost:8000/api/cart/${id}`);
@@ -92,7 +98,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
         await axios.delete(`http://localhost:8000/api/cart/${item.id}`);
       }
       set({ cart: [] });
-      localStorage.removeItem('cart');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('cart');
+      }
     } catch (error) {
       console.error('Error clearing cart:', error);
       alert('Ошибка при очистке корзины. Попробуйте снова.');
@@ -106,16 +114,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
         quantity: item.quantity,
       }));
       set({ cart: serverCart });
-      localStorage.setItem('cart', JSON.stringify(serverCart));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cart', JSON.stringify(serverCart));
+      }
     } catch (error) {
       console.error('Error fetching cart:', error);
-      const savedCart = localStorage.getItem('cart');
-      if (savedCart) {
-        set({ cart: JSON.parse(savedCart) });
+      if (typeof window !== 'undefined') {
+        const savedCart = localStorage.getItem('cart');
+        if (savedCart) {
+          set({ cart: JSON.parse(savedCart) });
+        }
       }
     }
   },
 }));
-
-// Инициализация при загрузке
-useCartStore.getState().fetchCart();

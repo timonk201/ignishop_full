@@ -2,98 +2,128 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Product;
-
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = $request->input('search');
-        $products = Product::query();
+        try {
+            $query = Product::query()->with(['category', 'subcategory']);
 
-        if ($query) {
-            $products->where(function ($queryBuilder) use ($query) {
-                $queryBuilder->where('name', 'like', "%{$query}%")
-                             ->orWhere('category', 'like', "%{$query}%")
-                             ->orWhere('description', 'like', "%{$query}%");
-            });
+            if ($request->has('category')) {
+                $category = $request->input('category');
+                $query->whereHas('category', function ($q) use ($category) {
+                    $q->where('key', $category);
+                });
+            }
+
+            if ($request->has('subcategory')) {
+                $subcategoryName = $request->input('subcategory');
+                $query->whereHas('subcategory', function ($q) use ($subcategoryName) {
+                    $q->where('name', $subcategoryName);
+                });
+            }
+
+            $products = $query->get();
+
+            Log::info('Products fetched successfully', ['count' => $products->count()]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $products,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching products', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error',
+            ], 500);
         }
-
-        $products = $products->get();
-        return response()->json(['data' => $products]);
     }
-
-
 
     public function store(Request $request)
-{
-    \Log::info('Received store data:', $request->all());
-    $validatedData = $request->validate([
-        'name' => 'required|string|max:255',
-        'category' => 'required|string',
-        'description' => 'nullable|string',
-        'price' => 'required|numeric',
-        'stock' => 'required|integer',
-        'image' => 'nullable|image|mimes:jpeg|max:2048',
-    ]);
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'description' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'image' => 'nullable|image|mimes:jpeg,png,gif,webp|max:2048',
+        ]);
 
-    if ($request->hasFile('image')) {
-        $imageName = time() . '.' . $request->file('image')->extension();
-        $request->file('image')->move(public_path('images'), $imageName);
-        $validatedData['image'] = '/images/' . $imageName;
-    } else {
-        $validatedData['image'] = null; // Если изображение не загружено, ставим null
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('images', 'public');
+            $validated['image'] = '/storage/' . $path;
+        }
+
+        $product = Product::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'data' => $product->load(['category', 'subcategory']),
+        ], 201);
     }
 
-    $product = Product::create($validatedData);
-    return response()->json([
-        'status' => 'success',
-        'data' => $product
-    ], 201);
-}
-
-public function update(Request $request, Product $product)
-{
-    \Log::info('Received update data:', $request->all());
-    $validatedData = $request->validate([
-        'name' => 'required|string|max:255',
-        'category' => 'required|string',
-        'description' => 'nullable|string',
-        'price' => 'required|numeric',
-        'stock' => 'required|integer',
-        'image' => 'nullable|image|mimes:jpeg|max:2048',
-    ]);
-
-    if ($request->hasFile('image')) {
-        $imageName = time() . '.' . $request->file('image')->extension();
-        $request->file('image')->move(public_path('images'), $imageName);
-        $validatedData['image'] = '/images/' . $imageName;
-    } else {
-        $validatedData['image'] = $product->image; // Сохраняем старое изображение
+    public function show($id)
+    {
+        $product = Product::with(['category', 'subcategory'])->findOrFail($id);
+        return response()->json([
+            'success' => true,
+            'data' => $product,
+        ]);
     }
 
-    $product->update($validatedData);
-    return response()->json([
-        'status' => 'success',
-        'data' => $product
-    ], 200);
-}
-
-public function show($id)
+    public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
-        return response()->json(['data' => $product]);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'description' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'image' => 'nullable|image|mimes:jpeg,png,gif,webp|max:2048',
+        ]);
+
+        if ($request->hasFile('image')) {
+            if ($product->image) {
+                Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+            }
+            $path = $request->file('image')->store('images', 'public');
+            $validated['image'] = '/storage/' . $path;
+        }
+
+        $product->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'data' => $product->load(['category', 'subcategory']),
+        ]);
     }
 
-    public function destroy(Product $product)
+    public function destroy($id)
     {
+        $product = Product::findOrFail($id);
+        if ($product->image) {
+            Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+        }
         $product->delete();
+
         return response()->json([
-            'status' => 'success',
-            'message' => 'Product deleted'
-        ], 200);
+            'success' => true,
+            'message' => 'Product deleted successfully',
+        ]);
     }
 }

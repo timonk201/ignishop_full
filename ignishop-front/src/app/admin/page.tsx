@@ -1,13 +1,28 @@
-// app/admin/page.tsx
+// app/admin/edit/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-export interface Product {
+interface Category {
+  id: number;
+  key: string;
+  name: string;
+  subcategories: Subcategory[];
+}
+
+interface Subcategory {
   id: number;
   name: string;
-  category: string;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  category_id: number;
+  subcategory_id: number | null;
+  category: { id: number; name: string };
+  subcategory: { id: number; name: string } | null;
   description: string;
   price: number | string;
   stock: number;
@@ -18,10 +33,12 @@ export interface Product {
 
 export default function AdminPanel() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [newProduct, setNewProduct] = useState<Product>({
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [newProduct, setNewProduct] = useState({
     id: 0,
     name: '',
-    category: 'electronics',
+    category_id: 0,
+    subcategory_id: null,
     description: '',
     price: 0,
     stock: 0,
@@ -30,10 +47,11 @@ export default function AdminPanel() {
     updated_at: '',
   });
   const [editProductId, setEditProductId] = useState<number | null>(null);
-  const [editedProduct, setEditedProduct] = useState<Product>({
+  const [editedProduct, setEditedProduct] = useState({
     id: 0,
     name: '',
-    category: 'electronics',
+    category_id: 0,
+    subcategory_id: null,
     description: '',
     price: 0,
     stock: 0,
@@ -41,7 +59,30 @@ export default function AdminPanel() {
     created_at: '',
     updated_at: '',
   });
-  const categories = ['electronics', 'clothing', 'books'];
+
+  // Загрузка категорий
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/categories');
+        setCategories(response.data.data);
+        if (response.data.data.length > 0) {
+          setNewProduct((prev) => ({
+            ...prev,
+            category_id: response.data.data[0].id,
+          }));
+          setEditedProduct((prev) => ({
+            ...prev,
+            category_id: response.data.data[0].id,
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        alert('Не удалось загрузить категории.');
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Загрузка списка товаров
   useEffect(() => {
@@ -64,13 +105,48 @@ export default function AdminPanel() {
     fetchProducts();
   }, []);
 
-  // Обработка изменения полей
+  // Обработка изменения полей для нового товара
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewProduct((prev) => ({
-      ...prev,
-      [name]: name === 'price' ? parseFloat(value) || 0 : name === 'stock' ? parseInt(value) || 0 : value,
-    }));
+    if (name === 'category_id') {
+      setNewProduct((prev) => ({
+        ...prev,
+        category_id: parseInt(value) || 0,
+        subcategory_id: null, // Сбрасываем подкатегорию
+      }));
+    } else if (name === 'subcategory_id') {
+      setNewProduct((prev) => ({
+        ...prev,
+        subcategory_id: value ? parseInt(value) : null,
+      }));
+    } else {
+      setNewProduct((prev) => ({
+        ...prev,
+        [name]: name === 'price' ? parseFloat(value) || 0 : name === 'stock' ? parseInt(value) || 0 : value,
+      }));
+    }
+  };
+
+  // Обработка изменения полей для редактируемого товара
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name === 'category_id') {
+      setEditedProduct((prev) => ({
+        ...prev,
+        category_id: parseInt(value) || 0,
+        subcategory_id: null, // Сбрасываем подкатегорию
+      }));
+    } else if (name === 'subcategory_id') {
+      setEditedProduct((prev) => ({
+        ...prev,
+        subcategory_id: value ? parseInt(value) : null,
+      }));
+    } else {
+      setEditedProduct((prev) => ({
+        ...prev,
+        [name]: name === 'price' ? parseFloat(value) || 0 : name === 'stock' ? parseInt(value) || 0 : value,
+      }));
+    }
   };
 
   // Обработка загрузки изображения для нового товара
@@ -98,14 +174,17 @@ export default function AdminPanel() {
     e.preventDefault();
     if (
       newProduct.name &&
-      newProduct.category &&
+      newProduct.category_id &&
       newProduct.description &&
       newProduct.price &&
       newProduct.stock
     ) {
       const formData = new FormData();
       formData.append('name', newProduct.name);
-      formData.append('category', newProduct.category);
+      formData.append('category_id', newProduct.category_id.toString());
+      if (newProduct.subcategory_id) {
+        formData.append('subcategory_id', newProduct.subcategory_id.toString());
+      }
       formData.append('description', newProduct.description);
       formData.append('price', newProduct.price.toString());
       formData.append('stock', newProduct.stock.toString());
@@ -128,7 +207,8 @@ export default function AdminPanel() {
         setNewProduct({
           id: 0,
           name: '',
-          category: 'electronics',
+          category_id: categories.length > 0 ? categories[0].id : 0,
+          subcategory_id: null,
           description: '',
           price: 0,
           stock: 0,
@@ -149,21 +229,28 @@ export default function AdminPanel() {
   // Редактирование товара
   const handleEdit = (product: Product) => {
     setEditProductId(product.id);
-    setEditedProduct({ ...product });
+    setEditedProduct({
+      ...product,
+      category_id: product.category.id,
+      subcategory_id: product.subcategory ? product.subcategory.id : null,
+    });
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
       editedProduct.name &&
-      editedProduct.category &&
+      editedProduct.category_id &&
       editedProduct.description &&
       editedProduct.price &&
       editedProduct.stock
     ) {
       const formData = new FormData();
       formData.append('name', editedProduct.name);
-      formData.append('category', editedProduct.category);
+      formData.append('category_id', editedProduct.category_id.toString());
+      if (editedProduct.subcategory_id) {
+        formData.append('subcategory_id', editedProduct.subcategory_id.toString());
+      }
       formData.append('description', editedProduct.description);
       formData.append('price', editedProduct.price.toString());
       formData.append('stock', editedProduct.stock.toString());
@@ -191,7 +278,8 @@ export default function AdminPanel() {
         setEditedProduct({
           id: 0,
           name: '',
-          category: 'electronics',
+          category_id: categories.length > 0 ? categories[0].id : 0,
+          subcategory_id: null,
           description: '',
           price: 0,
           stock: 0,
@@ -251,17 +339,35 @@ export default function AdminPanel() {
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Категория:</label>
             <select
-              name="category"
-              value={newProduct.category}
+              name="category_id"
+              value={newProduct.category_id}
               onChange={handleChange}
               style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
               required
             >
               {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                <option key={category.id} value={category.id}>
+                  {category.name}
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Подкатегория:</label>
+            <select
+              name="subcategory_id"
+              value={newProduct.subcategory_id || ''}
+              onChange={handleChange}
+              style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
+            >
+              <option value="">Без подкатегории</option>
+              {categories
+                .find((cat) => cat.id === newProduct.category_id)
+                ?.subcategories.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.id}>
+                    {subcategory.name}
+                  </option>
+                ))}
             </select>
           </div>
           <div>
@@ -357,7 +463,10 @@ export default function AdminPanel() {
                 {product.name}
               </h4>
               <p style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>
-                Категория: {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
+                Категория: {product.category.name}
+              </p>
+              <p style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>
+                Подкатегория: {product.subcategory ? product.subcategory.name : 'Нет'}
               </p>
               <p style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Описание: {product.description}</p>
               <p style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>
@@ -371,27 +480,42 @@ export default function AdminPanel() {
                   type="text"
                   name="name"
                   value={editedProduct.name}
-                  onChange={(e) => setEditedProduct((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={handleEditChange}
                   style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
                   required
                 />
                 <select
-                  name="category"
-                  value={editedProduct.category}
-                  onChange={(e) => setEditedProduct((prev) => ({ ...prev, category: e.target.value }))}
+                  name="category_id"
+                  value={editedProduct.category_id}
+                  onChange={handleEditChange}
                   style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
                   required
                 >
                   {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
+                </select>
+                <select
+                  name="subcategory_id"
+                  value={editedProduct.subcategory_id || ''}
+                  onChange={handleEditChange}
+                  style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
+                >
+                  <option value="">Без подкатегории</option>
+                  {categories
+                    .find((cat) => cat.id === editedProduct.category_id)
+                    ?.subcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
+                      </option>
+                    ))}
                 </select>
                 <textarea
                   name="description"
                   value={editedProduct.description}
-                  onChange={(e) => setEditedProduct((prev) => ({ ...prev, description: e.target.value }))}
+                  onChange={handleEditChange}
                   style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%', minHeight: '80px' }}
                   required
                 />
@@ -400,7 +524,7 @@ export default function AdminPanel() {
                   step="0.01"
                   name="price"
                   value={editedProduct.price}
-                  onChange={(e) => setEditedProduct((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                  onChange={handleEditChange}
                   style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
                   required
                 />
@@ -408,7 +532,7 @@ export default function AdminPanel() {
                   type="number"
                   name="stock"
                   value={editedProduct.stock}
-                  onChange={(e) => setEditedProduct((prev) => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
+                  onChange={handleEditChange}
                   style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
                   required
                 />
