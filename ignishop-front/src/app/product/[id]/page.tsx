@@ -52,11 +52,7 @@ export default function ProductDetail() {
 
   const handleBuyNow = async () => {
     if (product) {
-      const added = await addToCart(product);
-      if (added) {
-        alert(`${product.name} добавлен в корзину!`);
-        router.push('/cart');
-      }
+      await addToCart(product);
     }
   };
 

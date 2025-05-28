@@ -1,4 +1,3 @@
-// src/app/components/Header.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,17 +6,53 @@ import Link from 'next/link';
 import axios from 'axios';
 import SearchBar from './SearchBar';
 import { useUser } from './../context/UserContext';
+import { useCartStore } from '../../store/cartStore';
+import { FaPlug, FaTshirt, FaBook, FaHome, FaDumbbell, FaSmile, FaGem, FaShoePrints, FaBriefcase, FaGamepad, FaBlender, FaCar } from 'react-icons/fa';
 
 export default function Header() {
   const { user, refreshUser } = useUser();
-  const [localUser, setLocalUser] = useState(user); // Локальное состояние для немедленного обновления
+  const { cart, fetchCart } = useCartStore();
+  const [localUser, setLocalUser] = useState(user);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const router = useRouter();
 
   // Синхронизация локального состояния с контекстом
   useEffect(() => {
     setLocalUser(user);
   }, [user]);
+
+  // Загрузка корзины при монтировании
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
+
+  // Загрузка категорий
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/categories');
+        setCategories(response.data.data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Автоматический выбор первой категории при открытии каталога
+  useEffect(() => {
+    if (showCatalog && categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0]);
+    } else if (!showCatalog) {
+      setSelectedCategory(null); // Сбрасываем выбор при закрытии каталога
+    }
+  }, [showCatalog, categories]);
+
+  // Подсчет общего количества товаров в корзине
+  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const handleSearch = (query) => {
     router.push(`/search?q=${encodeURIComponent(query)}`);
@@ -36,9 +71,9 @@ export default function Header() {
           setShowLogoutConfirm(false);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          refreshUser(); // Обновляем состояние в контексте
-          setLocalUser(null); // Немедленно обновляем локальное состояние
-          router.push('/login'); // Перенаправляем на страницу авторизации
+          refreshUser();
+          setLocalUser(null);
+          router.push('/login');
         })
         .catch((err) => {
           console.error('Ошибка при выходе:', err);
@@ -51,21 +86,129 @@ export default function Header() {
     router.push('/admin');
   };
 
+  // Закрытие каталога при клике вне области
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showCatalog && !event.target.closest('.catalog-container')) {
+        setShowCatalog(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showCatalog]);
+
   return (
-    <header style={{ backgroundColor: '#003087', color: 'white', padding: '8px 16px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+    <header style={{ backgroundColor: '#003087', color: 'white', padding: '8px 16px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', position: 'relative' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', textDecoration: 'none' }}>
           IgniShop
         </Link>
-        <div style={{ flexGrow: '1', margin: '0 16px' }}>
-          <SearchBar onSearch={handleSearch} />
+
+        <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1, margin: '0 16px', position: 'relative' }}>
+          {/* Кнопка каталога */}
+          <button
+            onClick={() => setShowCatalog(!showCatalog)}
+            style={{
+              backgroundColor: '#ff6200',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: '16px',
+              transition: 'background-color 0.3s',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ff6200')}
+          >
+            Каталог
+          </button>
+
+          {/* Поисковая строка */}
+          <div style={{ flexGrow: 1 }}>
+            <SearchBar onSearch={handleSearch} />
+          </div>
+
+          {/* Выдвигающийся каталог */}
+          {showCatalog && (
+            <div
+              className="catalog-container"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 10px)', // Отступ от нижней границы хедера
+                left: 0,
+                width: '600px',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                borderRadius: '8px',
+                display: 'flex',
+                zIndex: 1000,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Список категорий */}
+              <div
+                style={{
+                  width: '250px',
+                  backgroundColor: '#f5f5f5',
+                  padding: '8px 0',
+                  borderRight: '1px solid #e0e0e0',
+                }}
+              >
+                {categories.map((category) => (
+                  <div
+                    key={category.id}
+                    onMouseEnter={() => setSelectedCategory(category)}
+                    style={{
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      backgroundColor: selectedCategory?.id === category.id ? '#ff6200' : 'transparent',
+                      color: selectedCategory?.id === category.id ? 'white' : '#333333',
+                      transition: 'background-color 0.3s, color 0.3s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px', // Отступ между иконкой и текстом
+                    }}
+                  >
+                    {getCategoryIcon(category)} {category.name}
+                  </div>
+                ))}
+              </div>
+
+              {/* Подкатегории */}
+              {selectedCategory && (
+                <div style={{ flex: 1, padding: '8px 16px', backgroundColor: '#ffffff' }}>
+                  <h4 style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>
+                    {selectedCategory.name}
+                  </h4>
+                  {selectedCategory.subcategories.map((subcategory) => (
+                    <div
+                      key={subcategory.id}
+                      style={{
+                        padding: '4px 0',
+                        color: '#666666',
+                        cursor: 'pointer',
+                        transition: 'color 0.3s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = '#ff6200')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = '#666666')}
+                    >
+                      {subcategory.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {localUser && (
             <>
               <Link
                 href="/cart"
                 style={{
+                  position: 'relative',
                   backgroundColor: '#ff6200',
                   color: 'white',
                   padding: '8px 16px',
@@ -74,6 +217,27 @@ export default function Header() {
                 }}
               >
                 Корзина
+                {cartItemCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-8px',
+                      right: '-8px',
+                      backgroundColor: '#FF0000',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {cartItemCount}
+                  </span>
+                )}
               </Link>
               <Link
                 href="/orders"
@@ -245,4 +409,23 @@ export default function Header() {
       )}
     </header>
   );
+}
+
+// Функция для получения иконок по ключу категории
+function getCategoryIcon(category) {
+  const icons = {
+    electronics: <FaPlug />,
+    clothing: <FaTshirt />,
+    books: <FaBook />,
+    home: <FaHome />,
+    sports: <FaDumbbell />,
+    beauty: <FaSmile />,
+    jewelry: <FaGem />,
+    shoes: <FaShoePrints />,
+    bags: <FaBriefcase />,
+    toys: <FaGamepad />,
+    appliances: <FaBlender />,
+    auto: <FaCar />,
+  };
+  return icons[category.key] || '📦';
 }

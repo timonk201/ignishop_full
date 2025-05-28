@@ -15,6 +15,7 @@ class ProductController extends Controller
         try {
             $query = Product::query()->with(['category', 'subcategory']);
 
+            // Фильтрация по категории
             if ($request->has('category')) {
                 $category = $request->input('category');
                 $query->whereHas('category', function ($q) use ($category) {
@@ -22,6 +23,7 @@ class ProductController extends Controller
                 });
             }
 
+            // Фильтрация по подкатегории
             if ($request->has('subcategory')) {
                 $subcategoryName = $request->input('subcategory');
                 $query->whereHas('subcategory', function ($q) use ($subcategoryName) {
@@ -29,13 +31,38 @@ class ProductController extends Controller
                 });
             }
 
-            $products = $query->get();
+            // Поиск по названию, категории и подкатегории
+            if ($request->has('search')) {
+                $searchTerm = $request->input('search');
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('name', 'like', "%{$searchTerm}%")
+                      ->orWhereHas('category', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      })
+                      ->orWhereHas('subcategory', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      });
+                });
+            }
 
-            Log::info('Products fetched successfully', ['count' => $products->count()]);
+            // Пагинация
+            $perPage = $request->input('per_page', 8); // По умолчанию 8 товаров на страницу
+            $products = $query->paginate($perPage);
+
+            Log::info('Products fetched successfully', [
+                'count' => $products->total(),
+                'per_page' => $perPage,
+                'current_page' => $products->currentPage(),
+                'search' => $request->input('search'),
+            ]);
 
             return response()->json([
                 'success' => true,
-                'data' => $products,
+                'data' => $products->items(), // Текущие товары
+                'total' => $products->total(), // Общее количество товаров
+                'per_page' => $products->perPage(),
+                'current_page' => $products->currentPage(),
+                'last_page' => $products->lastPage(),
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching products', [
