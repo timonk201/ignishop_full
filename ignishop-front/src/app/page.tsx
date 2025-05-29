@@ -53,8 +53,9 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalProducts, setTotalProducts] = useState(0);
   const [errorShown, setErrorShown] = useState(false);
+  const [isFirstPageLoaded, setIsFirstPageLoaded] = useState(false);
   const observerTarget = useRef<HTMLDivElement | null>(null);
-  const isFetching = useRef(false); // Флаг для предотвращения повторных запросов
+  const isFetching = useRef(false);
 
   const perPage = 8;
 
@@ -75,16 +76,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Сбрасываем состояние при изменении фильтров
     setProducts([]);
     setPage(1);
     setHasMore(true);
     setErrorShown(false);
+    setLoadingMore(false);
+    setIsFirstPageLoaded(false);
     fetchProducts(1, true);
   }, [filters.category, filters.subcategory]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
-    if (isFetching.current || !hasMore) return; // Предотвращаем повторные запросы
+    if (isFetching.current || (!reset && !hasMore)) return;
     isFetching.current = true;
 
     try {
@@ -96,14 +98,13 @@ export default function Home() {
         per_page: perPage,
       };
       const response = await axios.get('http://localhost:8000/api/products', { params });
-      console.log('Fetched products:', response.data); // Отладка
+      console.log('Fetched products:', response.data);
       const fetchedProducts = response.data.data.map((product: Product) => ({
         ...product,
         price: parseFloat(product.price as string),
       }));
       setTotalProducts(response.data.total || 0);
 
-      // Фильтруем дубликаты по id
       setProducts((prev) => {
         const newProducts = reset ? fetchedProducts : [...prev, ...fetchedProducts];
         return newProducts.filter((item, index, self) =>
@@ -112,12 +113,15 @@ export default function Home() {
       });
 
       setHasMore(pageNum < response.data.last_page);
-      if (pageNum === 1 && fetchedProducts.length > 0) {
-        const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
-        setFilters((prev) => ({
-          ...prev,
-          maxPrice: maxProductPrice,
-        }));
+      if (pageNum === 1) {
+        if (fetchedProducts.length > 0) {
+          const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
+          setFilters((prev) => ({
+            ...prev,
+            maxPrice: maxProductPrice,
+          }));
+        }
+        setIsFirstPageLoaded(true);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -127,7 +131,7 @@ export default function Home() {
       }
     } finally {
       setLoadingMore(false);
-      isFetching.current = false; // Сбрасываем флаг после завершения
+      isFetching.current = false;
     }
   };
 
@@ -138,7 +142,8 @@ export default function Home() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current) {
+        console.log('Observer triggered:', { isIntersecting: entries[0].isIntersecting, hasMore, loadingMore, isFetching: isFetching.current, isFirstPageLoaded });
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
             fetchProducts(nextPage);
@@ -149,16 +154,17 @@ export default function Home() {
       { threshold: 0.1 }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    const currentTarget = observerTarget.current;
+    if (currentTarget && isFirstPageLoaded) {
+      observer.observe(currentTarget);
     }
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, loadingMore]);
+  }, [hasMore, loadingMore, isFirstPageLoaded]);
 
   const filteredProducts = products
     .filter((product) => {

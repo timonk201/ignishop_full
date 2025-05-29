@@ -13,23 +13,53 @@ export default function Header() {
   const { user, refreshUser } = useUser();
   const { cart, fetchCart } = useCartStore();
   const [localUser, setLocalUser] = useState(user);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [categories, setCategories] = useState([]);
   const [showCatalog, setShowCatalog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const router = useRouter();
 
-  // Синхронизация локального состояния с контекстом
-  useEffect(() => {
-    setLocalUser(user);
-  }, [user]);
+  // Функция для обновления localUser на основе localStorage
+  const updateUserFromStorage = () => {
+    if (typeof window === 'undefined') return; // Пропускаем на сервере
 
-  // Загрузка корзины при монтировании
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+
+    if (!token) {
+      setLocalUser(null);
+      return;
+    }
+
+    if (user) {
+      setLocalUser(user);
+    } else if (storedUser) {
+      setLocalUser(JSON.parse(storedUser));
+    } else {
+      setLocalUser(null);
+    }
+  };
+
+  // Инициализация и обновление при изменении user или маршрута
+  useEffect(() => {
+    updateUserFromStorage();
+  }, [user, router.asPath]); // Зависимость от user и маршрута
+
+  // Слушатель для изменений в localStorage (на случай изменения в другой вкладке)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorageChange = () => {
+      updateUserFromStorage();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
 
-  // Загрузка категорий
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -42,51 +72,28 @@ export default function Header() {
     fetchCategories();
   }, []);
 
-  // Автоматический выбор первой категории при открытии каталога
   useEffect(() => {
     if (showCatalog && categories.length > 0 && !selectedCategory) {
       setSelectedCategory(categories[0]);
     } else if (!showCatalog) {
-      setSelectedCategory(null); // Сбрасываем выбор при закрытии каталога
+      setSelectedCategory(null);
     }
   }, [showCatalog, categories]);
 
-  // Подсчет общего количества товаров в корзине
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const handleSearch = (query) => {
     router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
-  const handleLogout = () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      axios
-        .post(
-          'http://localhost:8000/api/logout',
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        .then(() => {
-          setShowLogoutConfirm(false);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          refreshUser();
-          setLocalUser(null);
-          router.push('/login');
-        })
-        .catch((err) => {
-          console.error('Ошибка при выходе:', err);
-          setShowLogoutConfirm(false);
-        });
-    }
-  };
-
   const handleAdminPanel = () => {
     router.push('/admin');
   };
 
-  // Закрытие каталога при клике вне области
+  const handleImageError = () => {
+    return false;
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showCatalog && !event.target.closest('.catalog-container')) {
@@ -100,12 +107,21 @@ export default function Header() {
   return (
     <header style={{ backgroundColor: '#003087', color: 'white', padding: '8px 16px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', position: 'relative' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/" style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', textDecoration: 'none' }}>
-          IgniShop
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img
+            src="/phoenix.png"
+            alt="IgniShop Logo"
+            style={{
+              width: '40px',
+              height: '40px',
+              marginRight: '8px',
+              objectFit: 'contain',
+            }}
+          />
+          <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'white' }}>IgniShop</span>
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1, margin: '0 16px', position: 'relative' }}>
-          {/* Кнопка каталога */}
+        <div style={{ display: 'flex', alignItems: 'center', flexGrow: '1', margin: '0 16px', position: 'relative' }}>
           <button
             onClick={() => setShowCatalog(!showCatalog)}
             style={{
@@ -124,18 +140,16 @@ export default function Header() {
             Каталог
           </button>
 
-          {/* Поисковая строка */}
           <div style={{ flexGrow: 1 }}>
             <SearchBar onSearch={handleSearch} />
           </div>
 
-          {/* Выдвигающийся каталог */}
           {showCatalog && (
             <div
               className="catalog-container"
               style={{
                 position: 'absolute',
-                top: 'calc(100% + 10px)', // Отступ от нижней границы хедера
+                top: 'calc(100% + 10px)',
                 left: 0,
                 width: '600px',
                 backgroundColor: '#ffffff',
@@ -146,7 +160,6 @@ export default function Header() {
                 overflow: 'hidden',
               }}
             >
-              {/* Список категорий */}
               <div
                 style={{
                   width: '250px',
@@ -167,7 +180,7 @@ export default function Header() {
                       transition: 'background-color 0.3s, color 0.3s',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px', // Отступ между иконкой и текстом
+                      gap: '8px',
                     }}
                   >
                     {getCategoryIcon(category)} {category.name}
@@ -175,7 +188,6 @@ export default function Header() {
                 ))}
               </div>
 
-              {/* Подкатегории */}
               {selectedCategory && (
                 <div style={{ flex: 1, padding: '8px 16px', backgroundColor: '#ffffff' }}>
                   <h4 style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>
@@ -274,35 +286,44 @@ export default function Header() {
                   Админ
                 </button>
               ) : (
-                <Link
-                  href="/profile"
-                  style={{
-                    backgroundColor: '#ff6200',
-                    color: 'white',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    textDecoration: 'none',
-                  }}
-                >
-                  Профиль
+                <Link href="/profile">
+                  {localUser.avatar ? (
+                    <img
+                      src={localUser.avatar}
+                      alt="User Avatar"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '2px solid #ff6200',
+                        transition: 'border-color 0.3s',
+                      }}
+                      onError={handleImageError}
+                      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: '#E0E0E0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #ff6200',
+                        transition: 'border-color 0.3s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                    >
+                      <span style={{ fontSize: '20px', color: '#666666' }}>👤</span>
+                    </div>
+                  )}
                 </Link>
               )}
-              <button
-                onClick={() => setShowLogoutConfirm(true)}
-                style={{
-                  backgroundColor: '#666666',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.3s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
-              >
-                Выйти
-              </button>
             </>
           ) : (
             <>
@@ -334,84 +355,10 @@ export default function Header() {
           )}
         </div>
       </div>
-
-      {showLogoutConfirm && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '0',
-            left: '0',
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              padding: '24px',
-              borderRadius: '8px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textAlign: 'center',
-              maxWidth: '400px',
-              width: '90%',
-            }}
-          >
-            <h3 style={{ fontSize: '20px', color: '#333333', marginBottom: '16px' }}>
-              Подтверждение выхода
-            </h3>
-            <p style={{ fontSize: '14px', color: '#666666', marginBottom: '24px' }}>
-              Вы уверены, что хотите выйти?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-              <button
-                onClick={handleLogout}
-                style={{
-                  backgroundColor: '#FF6200',
-                  color: '#FFFFFF',
-                  padding: '10px 20px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 'semibold',
-                  transition: 'background-color 0.3s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
-              >
-                Да, выйти
-              </button>
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                style={{
-                  backgroundColor: '#666666',
-                  color: '#FFFFFF',
-                  padding: '10px 20px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'background-color 0.3s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
 
-// Функция для получения иконок по ключу категории
 function getCategoryIcon(category) {
   const icons = {
     electronics: <FaPlug />,

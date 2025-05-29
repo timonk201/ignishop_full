@@ -9,6 +9,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SubcategoryController;
+use App\Http\Controllers\UserController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -40,3 +41,7 @@ Route::post('/admin/login', [AdminController::class, 'login']);
 // Маршруты для категорий и подкатегорий
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/subcategories', [SubcategoryController::class, 'index']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/user/update', [UserController::class, 'update']);
+});

@@ -1,6 +1,5 @@
 <?php
 
-// app/Http/Controllers/AuthController.php
 namespace App\Http\Controllers;
 
 use App\Models\User;
@@ -11,7 +10,6 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        // Логируем входящие данные для отладки
         \Log::info('Register request data:', $request->all());
 
         $validatedData = $request->validate([
@@ -50,16 +48,22 @@ class AuthController extends Controller
     }
 
     public function user(Request $request)
-{
-    $user = $request->user();
-    if (!$user) {
-        \Log::error('User not authenticated for /api/user request');
-        return response()->json(['message' => 'Не аутентифицирован'], 401);
-    }
-    return response()->json($user);
-}
+    {
+        $user = $request->user();
+        if (!$user) {
+            \Log::error('User not authenticated for /api/user request');
+            return response()->json(['message' => 'Не аутентифицирован'], 401);
+        }
 
-public function logout(Request $request)
+        // Добавляем полный URL для аватара
+        if ($user->avatar) {
+            $user->avatar = asset('storage/' . $user->avatar);
+        }
+
+        return response()->json($user);
+    }
+
+    public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Успешный выход']);
