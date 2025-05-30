@@ -1,13 +1,26 @@
-// src/store/cartStore.ts
 import { create } from 'zustand';
 import axios from 'axios';
+
+interface Category {
+  id: number;
+  key: string;
+  name: string;
+}
+
+interface Subcategory {
+  id: number;
+  name: string;
+}
 
 export interface Product {
   id: number;
   name: string;
-  category: string;
+  category_id: number;
+  subcategory_id: number | null;
+  category: Category;
+  subcategory: Subcategory | null;
   description: string;
-  price: number | string;
+  price: number;
   stock: number;
   image?: string;
   created_at: string;
@@ -43,18 +56,22 @@ export const useCartStore = create<CartStore>((set, get) => ({
         return { cart: state.cart };
       }
       const updatedCart = [...state.cart, { ...product, quantity: newQuantity }];
-      // Сохраняем в localStorage только на клиенте
       if (typeof window !== 'undefined') {
         localStorage.setItem('cart', JSON.stringify(updatedCart));
       }
       return { cart: updatedCart };
     });
 
-    await axios.post('http://localhost:8000/api/cart', {
-      product_id: product.id,
-      quantity: 1,
-    });
-    return true;
+    try {
+      await axios.post('http://localhost:8000/api/cart', {
+        product_id: product.id,
+        quantity: 1,
+      });
+      return true;
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      return false;
+    }
   },
   isInCart: (id: number) => {
     return get().cart.some((item) => item.id === id);
@@ -78,7 +95,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
     });
     const item = get().cart.find((item) => item.id === id);
     if (item) {
-      axios.put(`http://localhost:8000/api/cart/${id}`, { quantity: item.quantity });
+      axios.put(`http://localhost:8000/api/cart/${id}`, { quantity: item.quantity }).catch((error) => {
+        console.error('Error updating quantity on server:', error);
+      });
     }
   },
   removeFromCart: async (id: number) => {
@@ -89,7 +108,11 @@ export const useCartStore = create<CartStore>((set, get) => ({
       }
       return { cart: updatedCart };
     });
-    await axios.delete(`http://localhost:8000/api/cart/${id}`);
+    try {
+      await axios.delete(`http://localhost:8000/api/cart/${id}`);
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+    }
   },
   clearCart: async () => {
     try {
@@ -112,6 +135,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
       const serverCart = response.data.data.map((item: any) => ({
         ...item.product,
         quantity: item.quantity,
+        price: parseFloat(item.product.price), // Убедимся, что price - число
       }));
       set({ cart: serverCart });
       if (typeof window !== 'undefined') {
@@ -122,7 +146,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
       if (typeof window !== 'undefined') {
         const savedCart = localStorage.getItem('cart');
         if (savedCart) {
-          set({ cart: JSON.parse(savedCart) });
+          const parsedCart = JSON.parse(savedCart);
+          // Убедимся, что price - число для всех элементов
+          const normalizedCart = parsedCart.map((item: CartItem) => ({
+            ...item,
+            price: parseFloat(item.price as any),
+          }));
+          set({ cart: normalizedCart });
         }
       }
     }

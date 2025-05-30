@@ -1,12 +1,26 @@
-// app/context/UserContext.jsx
+// app/context/UserContext.tsx
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-const UserContext = createContext();
+interface User {
+  id?: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  is_admin?: boolean;
+}
 
-export function UserProvider({ children }) {
-  const [user, setUser] = useState(null);
+interface UserContextType {
+  user: User | null;
+  refreshUser: () => Promise<void>;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
+}
+
+const UserContext = createContext<UserContextType | undefined>(undefined);
+
+export function UserProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -66,4 +80,10 @@ export function UserProvider({ children }) {
   );
 }
 
-export const useUser = () => useContext(UserContext);
+export const useUser = (): UserContextType => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser must be used within a UserProvider');
+  }
+  return context;
+};

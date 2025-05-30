@@ -1,3 +1,4 @@
+// app/components/Header.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,22 +6,33 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
 import SearchBar from './SearchBar';
-import { useUser } from './../context/UserContext';
+import { useUser } from '../context/UserContext';
 import { useCartStore } from '../../store/cartStore';
 import { FaPlug, FaTshirt, FaBook, FaHome, FaDumbbell, FaSmile, FaGem, FaShoePrints, FaBriefcase, FaGamepad, FaBlender, FaCar } from 'react-icons/fa';
+
+interface Category {
+  id: number;
+  key: string;
+  name: string;
+  subcategories: { id: number; name: string }[];
+}
+
+interface CartItem {
+  id: number;
+  quantity: number;
+}
 
 export default function Header() {
   const { user, refreshUser } = useUser();
   const { cart, fetchCart } = useCartStore();
-  const [localUser, setLocalUser] = useState(user);
-  const [categories, setCategories] = useState([]);
+  const [localUser, setLocalUser] = useState<User | null>(user);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [showCatalog, setShowCatalog] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const router = useRouter();
 
-  // Функция для обновления localUser на основе localStorage
   const updateUserFromStorage = () => {
-    if (typeof window === 'undefined') return; // Пропускаем на сервере
+    if (typeof window === 'undefined') return;
 
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -39,12 +51,10 @@ export default function Header() {
     }
   };
 
-  // Инициализация и обновление при изменении user или маршрута
   useEffect(() => {
     updateUserFromStorage();
-  }, [user, router.asPath]); // Зависимость от user и маршрута
+  }, [user, router.asPath]);
 
-  // Слушатель для изменений в localStorage (на случай изменения в другой вкладке)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -80,9 +90,9 @@ export default function Header() {
     }
   }, [showCatalog, categories]);
 
-  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+  const cartItemCount = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
 
-  const handleSearch = (query) => {
+  const handleSearch = (query: string) => {
     router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
@@ -95,7 +105,7 @@ export default function Header() {
   };
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (showCatalog && !event.target.closest('.catalog-container')) {
         setShowCatalog(false);
       }
@@ -359,7 +369,7 @@ export default function Header() {
   );
 }
 
-function getCategoryIcon(category) {
+function getCategoryIcon(category: Category) {
   const icons = {
     electronics: <FaPlug />,
     clothing: <FaTshirt />,

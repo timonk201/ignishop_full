@@ -5,9 +5,17 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 
+interface User {
+  id?: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  is_admin?: boolean;
+}
+
 export default function ProfilePage() {
   const { refreshUser } = useUser();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editAvatarMode, setEditAvatarMode] = useState(false);
@@ -16,9 +24,9 @@ export default function ProfilePage() {
     name: '',
     email: '',
     password: '',
-    avatar: null,
+    avatar: null as File | null,
   });
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [cacheBuster, setCacheBuster] = useState(Date.now());
   const router = useRouter();
@@ -61,13 +69,13 @@ export default function ProfilePage() {
     fetchUser();
   }, [router, cacheBuster]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       setFormData((prev) => ({ ...prev, avatar: file }));
       setAvatarPreview(URL.createObjectURL(file));
@@ -77,7 +85,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAvatarSubmit = async (avatarFile) => {
+  const handleAvatarSubmit = async (avatarFile: File) => {
     const token = localStorage.getItem('token');
     const formDataToSend = new FormData();
     formDataToSend.append('avatar', avatarFile);
@@ -114,7 +122,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
     const formDataToSend = new FormData();
@@ -170,7 +178,6 @@ export default function ProfilePage() {
           localStorage.removeItem('user');
           refreshUser();
           setUser(null);
-          // Диспатчим кастомное событие, чтобы уведомить другие компоненты
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('storage'));
           }
