@@ -2,27 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 
-interface Category {
-  id: number;
-  key: string;
-  name: string;
-  subcategories: Subcategory[];
-}
-
-interface Subcategory {
+interface Product {
   id: number;
   name: string;
-}
-
-export interface Product {
-  id: number;
-  name: string;
-  category: Category;
-  subcategory: Subcategory | null;
+  category: { key: string; name: string };
+  subcategory: { name: string } | null;
   description: string;
   price: number;
   stock: number;
@@ -31,16 +19,15 @@ export interface Product {
   updated_at: string;
 }
 
-export default function SearchPage() {
+export default function CategoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const query = searchParams.get('q') || '';
+  const params = useParams();
+  const category = params.category as string;
+  const subcategory = searchParams.get('subcategory') || '';
 
   const [filters, setFilters] = useState({
-    category: '',
-    subcategory: '',
     minPrice: 0,
     maxPrice: 1000,
     inStockOnly: false,
@@ -59,22 +46,6 @@ export default function SearchPage() {
   const perPage = 8;
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await axios.get('http://localhost:8000/api/categories');
-        setCategories(response.data.data);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        if (!errorShown) {
-          alert('Не удалось загрузить категории.');
-          setErrorShown(true);
-        }
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
     setProducts([]);
     setPage(1);
     setHasMore(true);
@@ -82,7 +53,7 @@ export default function SearchPage() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [query, filters.category, filters.subcategory]);
+  }, [category, subcategory]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -91,9 +62,8 @@ export default function SearchPage() {
     try {
       setLoadingMore(true);
       const params = {
-        search: query || undefined,
-        category: filters.category || undefined,
-        subcategory: filters.subcategory || undefined,
+        category: category || undefined,
+        subcategory: subcategory || undefined,
         page: pageNum,
         per_page: perPage,
       };
@@ -169,13 +139,7 @@ export default function SearchPage() {
     let newMinPrice = filters.minPrice;
     let newMaxPrice = filters.maxPrice;
 
-    if (name === 'category') {
-      setFilters((prev) => ({
-        ...prev,
-        category: value,
-        subcategory: '',
-      }));
-    } else if (name === 'minPrice') {
+    if (name === 'minPrice') {
       newMinPrice = parseFloat(value) || 0;
       if (newMinPrice > filters.maxPrice) newMaxPrice = newMinPrice;
       setFilters((prev) => ({
@@ -232,70 +196,6 @@ export default function SearchPage() {
         </h3>
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
-            Категория:
-          </label>
-          <select
-            name="category"
-            value={filters.category}
-            onChange={handleFilterChange}
-            style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              width: '100%',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-            onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
-          >
-            <option value="">Все</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.key}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {filters.category && (
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
-              Подкатегория:
-            </label>
-            <select
-              name="subcategory"
-              value={filters.subcategory}
-              onChange={handleFilterChange}
-              style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                width: '100%',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
-            >
-              <option value="">Все</option>
-              {categories
-                .find((cat) => cat.key === filters.category)
-                ?.subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.name}>
-                    {subcategory.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
             Цена:
           </label>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -334,7 +234,7 @@ export default function SearchPage() {
                 color: '#333333',
                 outline: 'none',
                 textAlign: 'center',
-                transition: 'background-color 0.3s',
+                transition: 'border-color 0.3s',
               }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
@@ -389,7 +289,7 @@ export default function SearchPage() {
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>
-              Результаты поиска: {query || 'все товары'}
+              Товары категории: {category}{subcategory ? ` / ${subcategory}` : ''}
             </h2>
             <select
               value={sortOrder}

@@ -1,4 +1,3 @@
-// app/cart/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,6 +15,7 @@ export interface Product {
   image?: string;
   created_at: string;
   updated_at: string;
+  quantity: number;
 }
 
 export interface Order {
@@ -41,6 +41,14 @@ export default function CartPage() {
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    for (const item of cart) {
+      if (item.quantity > item.stock) {
+        alert(`Недостаточно товара "${item.name}" на складе. Доступно: ${item.stock}, в корзине: ${item.quantity}.`);
+        return;
+      }
+    }
+
     const orderData = {
       items: cart.map((item) => ({
         id: item.id,
@@ -63,9 +71,10 @@ export default function CartPage() {
       await clearCart();
       alert('Заказ успешно оформлен!');
       router.push('/orders');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка при сохранении заказа:', error);
-      alert('Произошла ошибка при оформлении заказа. Попробуйте снова.');
+      const errorMessage = error.response?.data?.message || 'Произошла ошибка при оформлении заказа. Попробуйте снова.';
+      alert(errorMessage);
     }
   };
 

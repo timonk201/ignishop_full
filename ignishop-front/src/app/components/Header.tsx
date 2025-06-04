@@ -1,4 +1,3 @@
-// app/components/Header.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,6 +19,14 @@ interface Category {
 interface CartItem {
   id: number;
   quantity: number;
+}
+
+interface User {
+  id?: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  is_admin?: boolean;
 }
 
 export default function Header() {
@@ -104,6 +111,16 @@ export default function Header() {
     return false;
   };
 
+  const handleCategoryClick = (category: Category) => {
+    setShowCatalog(false);
+    router.push(`/category/${category.key}`);
+  };
+
+  const handleSubcategoryClick = (category: Category, subcategory: { id: number; name: string }) => {
+    setShowCatalog(false);
+    router.push(`/category/${category.key}?subcategory=${encodeURIComponent(subcategory.name)}`);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showCatalog && !event.target.closest('.catalog-container')) {
@@ -182,6 +199,7 @@ export default function Header() {
                   <div
                     key={category.id}
                     onMouseEnter={() => setSelectedCategory(category)}
+                    onClick={() => handleCategoryClick(category)}
                     style={{
                       padding: '8px 16px',
                       cursor: 'pointer',
@@ -206,6 +224,7 @@ export default function Header() {
                   {selectedCategory.subcategories.map((subcategory) => (
                     <div
                       key={subcategory.id}
+                      onClick={() => handleSubcategoryClick(selectedCategory, subcategory)}
                       style={{
                         padding: '4px 0',
                         color: '#666666',

@@ -21,6 +21,7 @@ Route::apiResource('cart', CartController::class)->except(['update', 'show']);
 
 // Кастомные маршруты для корзины
 Route::delete('/cart/clear', [CartController::class, 'clear']);
+Route::put('/cart/{id}', [CartController::class, 'update']); // Добавляем маршрут для PUT
 
 // Маршруты для заказов
 Route::post('/orders', [OrderController::class, 'store']);

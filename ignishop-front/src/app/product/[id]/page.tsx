@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useCartStore } from '../../../store/cartStore';
+import { FaTrash } from 'react-icons/fa';
 
 interface Category {
   key: string;
@@ -30,10 +31,11 @@ export interface Product {
 export default function ProductDetail() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart, isInCart } = useCartStore();
+  const { addToCart, isInCart, updateQuantity, removeFromCart, cart } = useCartStore();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [localQuantity, setLocalQuantity] = useState(1);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -50,10 +52,52 @@ export default function ProductDetail() {
     fetchProduct();
   }, [id]);
 
+  useEffect(() => {
+    const cartItem = cart.find((item) => item.id === Number(id));
+    if (cartItem) {
+      setLocalQuantity(cartItem.quantity);
+    } else {
+      setLocalQuantity(1);
+    }
+  }, [cart, id]);
+
   const handleBuyNow = async () => {
     if (product) {
-      await addToCart(product);
+      if (product.stock < 1) {
+        alert('Товара нет в наличии.');
+        return;
+      }
+      try {
+        await addToCart({ ...product, quantity: localQuantity });
+      } catch (error) {
+        alert('Ошибка при добавлении в корзину. Попробуйте снова.');
+      }
     }
+  };
+
+  const handleQuantityChange = async (change: number) => {
+    if (!product) return;
+    const newQuantity = Math.max(1, Math.min(localQuantity + change, product.stock));
+    setLocalQuantity(newQuantity);
+    const cartItem = cart.find((item) => item.id === product.id);
+    if (cartItem) {
+      try {
+        await updateQuantity(product.id, newQuantity);
+      } catch (error) {
+        alert('Ошибка при обновлении количества. Попробуйте снова.');
+        setLocalQuantity(cartItem.quantity); // Откатываем локальное состояние
+      }
+    }
+  };
+
+  const handleRemoveFromCart = async () => {
+    if (!product) return;
+    await removeFromCart(product.id);
+    setLocalQuantity(1);
+  };
+
+  const handleGoToCart = () => {
+    router.push('/cart');
   };
 
   if (loading) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Загрузка...</p>;
@@ -110,43 +154,109 @@ export default function ProductDetail() {
           <p style={{ fontSize: '16px', color: '#333333', marginBottom: '16px' }}>
             На складе: {product.stock} единиц
           </p>
-          <button
-            onClick={handleBuyNow}
-            style={{
-              backgroundColor: inCart ? '#666666' : '#FF6200',
-              color: '#FFFFFF',
-              padding: '12px 24px',
-              borderRadius: '20px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'semibold',
-              transition: 'background-color 0.3s',
-              marginBottom: '16px',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = inCart ? '#4A4A4A' : '#e65a00')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = inCart ? '#666666' : '#FF6200')}
-          >
-            {inCart ? 'В корзине' : 'Купить'}
-          </button>
-          <button
-            onClick={() => router.push('/cart')}
-            style={{
-              backgroundColor: '#666666',
-              color: '#FFFFFF',
-              padding: '12px 24px',
-              borderRadius: '20px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'semibold',
-              transition: 'background-color 0.3s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
-          >
-            Перейти в корзину
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <button
+              onClick={inCart ? handleGoToCart : handleBuyNow}
+              style={{
+                backgroundColor: inCart ? '#666666' : '#FF6200',
+                color: '#FFFFFF',
+                padding: '12px 24px',
+                borderRadius: '20px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'semibold',
+                transition: 'background-color 0.3s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = inCart ? '#4A4A4A' : '#e65a00')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = inCart ? '#666666' : '#FF6200')}
+            >
+              {inCart ? 'В корзине' : 'Купить'}
+            </button>
+
+            {inCart && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {localQuantity === 1 ? (
+                  <button
+                    onClick={handleRemoveFromCart}
+                    style={{
+                      backgroundColor: '#FF0000',
+                      color: '#FFFFFF',
+                      padding: '8px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#CC0000')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF0000')}
+                  >
+                    <FaTrash size={16} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleQuantityChange(-1)}
+                    style={{
+                      backgroundColor: '#666666',
+                      color: '#FFFFFF',
+                      padding: '8px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: 'pointer',
+                      width: '32px',
+                      height: '32px',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
+                  >
+                    −
+                  </button>
+                )}
+                <span style={{ fontSize: '16px', color: '#333333', minWidth: '24px', textAlign: 'center' }}>{localQuantity}</span>
+                <button
+                  onClick={() => handleQuantityChange(1)}
+                  style={{
+                    backgroundColor: '#FF6200',
+                    color: '#FFFFFF',
+                    padding: '8px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    width: '32px',
+                    height: '32px',
+                    transition: 'background-color 0.3s',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </div>
+          {inCart && (
+            <p
+              style={{
+                fontSize: '14px',
+                color: '#666666',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                marginTop: '-8px',
+                marginLeft: '8px',
+              }}
+              onClick={handleGoToCart}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#FF6200')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#666666')}
+            >
+              Перейти
+            </p>
+          )}
         </div>
       </div>
     </div>

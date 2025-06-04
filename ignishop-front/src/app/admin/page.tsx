@@ -1,4 +1,3 @@
-// app/admin/edit/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -59,6 +58,7 @@ export default function AdminPanel() {
     created_at: '',
     updated_at: '',
   });
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Загрузка категорий
   useEffect(() => {
@@ -313,11 +313,53 @@ export default function AdminPanel() {
     }
   };
 
+  // Выход из аккаунта
+  const handleLogout = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios
+        .post(
+          'http://localhost:8000/api/logout',
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .then(() => {
+          setShowLogoutConfirm(false);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.dispatchEvent(new Event('storage'));
+          window.location.href = '/';
+        })
+        .catch((err) => {
+          console.error('Ошибка при выходе:', err);
+          setShowLogoutConfirm(false);
+        });
+    }
+  };
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>
-        Админ-панель
-      </h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>Админ-панель</h2>
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          style={{
+            backgroundColor: '#666666',
+            color: 'white',
+            padding: '12px 24px',
+            borderRadius: '20px',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '16px',
+            transition: 'background-color 0.3s',
+            marginLeft: '16px',
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
+        >
+          Выйти
+        </button>
+      </div>
 
       {/* Форма для добавления товара */}
       <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
@@ -608,6 +650,79 @@ export default function AdminPanel() {
           </div>
         ))}
       </div>
+
+      {showLogoutConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              padding: '24px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              maxWidth: '400px',
+              width: '90%',
+            }}
+          >
+            <h3 style={{ fontSize: '20px', color: '#333333', marginBottom: '16px' }}>
+              Подтверждение выхода
+            </h3>
+            <p style={{ fontSize: '14px', color: '#666666', marginBottom: '24px' }}>
+              Вы уверены, что хотите выйти?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+              <button
+                onClick={handleLogout}
+                style={{
+                  backgroundColor: '#FF6200',
+                  color: '#FFFFFF',
+                  padding: '10px 20px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'semibold',
+                  transition: 'background-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
+              >
+                Да, выйти
+              </button>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                style={{
+                  backgroundColor: '#666666',
+                  color: '#FFFFFF',
+                  padding: '10px 20px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'background-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

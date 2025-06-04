@@ -26,17 +26,25 @@ interface Product {
   category: { key: string; name: string };
   subcategory: { name: string } | null;
   description: string;
-  price: number | string;
+  price: number;
   stock: number;
   image?: string;
   created_at: string;
   updated_at: string;
 }
 
+interface Banner {
+  id: number;
+  title: string;
+  description: string;
+  image: string;
+  link: string;
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const { addToCart, isInCart, fetchCart } = useCartStore();
+  const { fetchCart } = useCartStore();
   const router = useRouter();
 
   const [filters, setFilters] = useState({
@@ -58,6 +66,36 @@ export default function Home() {
   const isFetching = useRef(false);
 
   const perPage = 8;
+
+  // Состояние для баннеров
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
+
+  // Обновлённые данные для баннеров с русскими названиями подкатегорий
+  const banners: Banner[] = [
+    {
+      id: 1,
+      title: 'Ноутбуки со скидкой до 50%!',
+      description: 'Обновите свой гаджет прямо сейчас!',
+      image: '/banners/laptop.jpg',
+      link: '/category/electronics?subcategory=Ноутбуки',
+    },
+    {
+      id: 2,
+      title: 'Сезонная распродажа одежды!',
+      description: 'Скидки до 70% на модные коллекции!',
+      image: '/banners/clothing.jpg',
+      link: '/category/clothing',
+    },
+    {
+      id: 3,
+      title: 'Спортивная одежда для активного отдыха!',
+      description: 'Подготовьтесь к лету с нами!',
+      image: '/banners/sports.jpg',
+      link: '/category/sports?subcategory=Спортивная одежда',
+    },
+  ];
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -179,10 +217,6 @@ export default function Home() {
       return 0;
     });
 
-  const handleAddToCart = async (product: Product) => {
-    await addToCart(product);
-  };
-
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -222,6 +256,40 @@ export default function Home() {
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOrder(e.target.value);
+  };
+
+  // Функции для управления баннерами
+  const handlePrevBanner = () => {
+    setSlideDirection('right');
+    setCurrentBannerIndex((prev) =>
+      prev === 0 ? banners.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextBanner = () => {
+    setSlideDirection('left');
+    setCurrentBannerIndex((prev) =>
+      prev === banners.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const handleDotClick = (index: number) => {
+    setSlideDirection(index > currentBannerIndex ? 'left' : 'right');
+    setCurrentBannerIndex(index);
+  };
+
+  // Автоматическое перелистывание
+  useEffect(() => {
+    if (isHovered) return;
+    const interval = setInterval(() => {
+      handleNextBanner();
+    }, 5000); // Перелистывание каждые 5 секунд
+    return () => clearInterval(interval);
+  }, [isHovered]);
+
+  // Обработка клика по баннеру
+  const handleBannerClick = (link: string) => {
+    router.push(link);
   };
 
   return (
@@ -372,20 +440,53 @@ export default function Home() {
           </div>
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
-            <input
-              type="checkbox"
-              name="inStockOnly"
-              checked={filters.inStockOnly}
-              onChange={handleFilterChange}
-              style={{
-                marginRight: '8px',
-                accentColor: '#ff6200',
-                cursor: 'pointer',
-                width: '16px',
-                height: '16px',
-              }}
-            />
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="inStockOnly"
+                checked={filters.inStockOnly}
+                onChange={handleFilterChange}
+                style={{
+                  position: 'absolute',
+                  opacity: 0,
+                  width: '16px',
+                  height: '16px',
+                  cursor: 'pointer',
+                }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.inStockOnly ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.inStockOnly ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.inStockOnly && (
+                  <svg
+                    style={{
+                      position: 'absolute',
+                      top: '1px',
+                      left: '1px',
+                      width: '12px',
+                      height: '12px',
+                      fill: 'none',
+                      stroke: '#ffffff',
+                      strokeWidth: '2',
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                    }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
             Только в наличии
           </label>
         </div>
@@ -394,43 +495,175 @@ export default function Home() {
       <div style={{ flexGrow: '1' }}>
         <div
           style={{
+            position: 'relative',
             backgroundColor: '#fffacd',
             padding: '24px',
             borderRadius: '8px',
             marginBottom: '24px',
-            position: 'relative',
             overflow: 'hidden',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000000' }}>
-                Горячие товары!
-              </h2>
-              <p style={{ fontSize: '18px', color: '#000000' }}>До 90% скидки</p>
-              <button
+          <div style={{ position: 'relative', width: '100%', height: '250px', overflow: 'hidden' }}>
+            {banners.map((banner, index) => (
+              <div
+                key={banner.id}
+                onClick={() => handleBannerClick(banner.link)}
                 style={{
-                  marginTop: '16px',
-                  backgroundColor: '#000000',
-                  color: 'white',
-                  padding: '12px 24px',
-                  borderRadius: '20px',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingBottom: '24px',
+                  transform:
+                    index === currentBannerIndex
+                      ? 'translateX(0)'
+                      : slideDirection === 'left'
+                      ? `translateX(${index > currentBannerIndex ? '100%' : '-100%'})`
+                      : `translateX(${index < currentBannerIndex ? '-100%' : '100%'})`,
+                  opacity: index === currentBannerIndex ? 1 : 0,
+                  transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ paddingBottom: '16px' }}>
+                  <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000000' }}>
+                    {banner.title}
+                  </h2>
+                  <p style={{ fontSize: '18px', color: '#000000' }}>{banner.description}</p>
+                  <button
+                    style={{
+                      marginTop: '16px',
+                      backgroundColor: '#ff6200',
+                      color: 'white',
+                      padding: '12px 24px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      minHeight: '48px',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ff6200')}
+                  >
+                    Смотреть >
+                  </button>
+                </div>
+                <div style={{ width: '50%', height: '200px', overflow: 'hidden', borderRadius: '8px' }}>
+                  <img
+                    src={banner.image}
+                    alt={banner.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                    onError={(e) => (e.currentTarget.src = '/placeholder-banner.jpg')}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Стрелки */}
+          {isHovered && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  handlePrevBanner();
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '10px',
+                  transform: 'translateY(-50%)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  color: '#ff6200',
+                  transition: 'background-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
+              >
+                ←
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNextBanner();
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  right: '10px',
+                  transform: 'translateY(-50%)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  color: '#ff6200',
+                  transition: 'background-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
+              >
+                →
+              </button>
+            </>
+          )}
+
+          {/* Индикаторы (кружочки) */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: '8px',
+            }}
+          >
+            {banners.map((_, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDotClick(index);
+                }}
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: index === currentBannerIndex ? '#ff6200' : 'rgba(255, 255, 255, 0.5)',
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'background-color 0.3s',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#333333')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#000000')}
-              >
-                Смотреть >
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: '16px' }}>
-              <div className="banner-placeholder">Ноутбук</div>
-              <div className="banner-placeholder">Одежда</div>
-            </div>
+              />
+            ))}
           </div>
+
           <div
             style={{
               position: 'absolute',
@@ -476,132 +709,100 @@ export default function Home() {
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-          {filteredProducts.map((product, index) => {
-            const inCart = isInCart(product.id);
-            return (
-              <div
-                key={`${product.id}-${index}`}
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  overflow: 'hidden',
-                  transition: 'transform 0.3s',
-                  cursor: 'pointer',
-                }}
-                onClick={() => router.push(`/product/${product.id}`)}
-                onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-              >
-                {product.image ? (
-                  <img
-                    src={`http://localhost:8000${product.image}`}
-                    alt={product.name}
-                    style={{
-                      width: '100%',
-                      height: '12rem',
-                      objectFit: 'cover',
-                      borderRadius: '8px 8px 0 0',
-                    }}
-                    onError={(e) =>
-                      console.error(
-                        `Failed to load image for ${product.name}: ${product.image}`
-                      )
-                    }
-                  />
-                ) : (
-                  <div
-                    style={{
-                      height: '12rem',
-                      backgroundColor: '#e0e0e0',
-                      borderRadius: '8px 8px 0 0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {product.name}
-                  </div>
-                )}
-                <div style={{ padding: '16px' }}>
-                  <h4
-                    style={{
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: '#333333',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    {product.name}
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: '14px',
-                      color: '#666666',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    {product.category.name}
-                    {product.subcategory ? ` / ${product.subcategory.name}` : ''}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: '14px',
-                      color: '#666666',
-                      marginBottom: '16px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {product.description}
-                  </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddToCart(product);
-                    }}
-                    style={{
-                      width: '100',
-                      backgroundColor: inCart ? '#666666' : '#ff6200',
-                      color: 'white',
-                      padding: '8px',
-                      borderRadius: '20px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      marginBottom: '8px',
-                      transition: 'background-color 0.3s',
-                    }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.backgroundColor = inCart
-                        ? '#4A4A4A'
-                        : '#e65a00')
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.backgroundColor = inCart
-                        ? '#666666'
-                        : '#ff6200')
-                    }
-                  >
-                    {inCart ? 'В корзине' : 'Добавить в корзину'}
-                  </button>
-                  <p
-                    style={{
-                      width: '100',
-                      textAlign: 'center',
-                      fontSize: '16px',
-                      color: '#333333',
-                      padding: '8px 0',
-                    }}
-                  >
-                    Цена: {product.price} $
-                  </p>
+          {filteredProducts.map((product, index) => (
+            <div
+              key={`${product.id}-${index}`}
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                overflow: 'hidden',
+                transition: 'transform 0.3s',
+                cursor: 'pointer',
+              }}
+              onClick={() => router.push(`/product/${product.id}`)}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              {product.image ? (
+                <img
+                  src={`http://localhost:8000${product.image}`}
+                  alt={product.name}
+                  style={{
+                    width: '100%',
+                    height: '12rem',
+                    objectFit: 'cover',
+                    borderRadius: '8px 8px 0 0',
+                  }}
+                  onError={(e) =>
+                    console.error(
+                      `Failed to load image for ${product.name}: ${product.image}`
+                    )
+                  }
+                />
+              ) : (
+                <div
+                  style={{
+                    height: '12rem',
+                    backgroundColor: '#e0e0e0',
+                    borderRadius: '8px 8px 0 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {product.name}
                 </div>
+              )}
+              <div style={{ padding: '16px' }}>
+                <h4
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    color: '#333333',
+                    marginBottom: '8px',
+                  }}
+                >
+                  {product.name}
+                </h4>
+                <p
+                  style={{
+                    fontSize: '14px',
+                    color: '#666666',
+                    marginBottom: '8px',
+                  }}
+                >
+                  {product.category.name}
+                  {product.subcategory ? ` / ${product.subcategory.name}` : ''}
+                </p>
+                <p
+                  style={{
+                    fontSize: '14px',
+                    color: '#666666',
+                    marginBottom: '16px',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {product.description}
+                </p>
+                <p
+                  style={{
+                    width: '100',
+                    textAlign: 'center',
+                    fontSize: '16px',
+                    color: '#333333',
+                    padding: '8px 0',
+                  }}
+                >
+                  Цена: {product.price} $
+                </p>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
         {loadingMore && (
           <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333', marginTop: '16px' }}>
