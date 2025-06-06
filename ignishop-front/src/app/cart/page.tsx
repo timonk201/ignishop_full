@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
+import { useUser } from '../context/UserContext';
+import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
 
 export interface Product {
@@ -29,15 +31,24 @@ export interface Order {
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, clearCart, fetchCart } = useCartStore();
+  const { user } = useUser();
+  const { openAuthModal } = useAuthStore();
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
   const [address, setAddress] = useState('');
   const router = useRouter();
 
   useEffect(() => {
+    if (!user) {
+      openAuthModal();
+      router.push('/');
+      return;
+    }
     fetchCart();
-  }, [fetchCart]);
+  }, [fetchCart, user, openAuthModal, router]);
 
-  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  if (!user) return null;
+
+  const totalPrice = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +66,7 @@ export default function CartPage() {
         name: item.name,
         category: item.category,
         description: item.description,
-        price: item.price,
+        price: Number(item.price),
         stock: item.stock,
         image: item.image,
         quantity: item.quantity,
@@ -85,7 +96,6 @@ export default function CartPage() {
         <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Корзина пуста</p>
       ) : (
         <>
-          {/* Список товаров в корзине */}
           <div style={{ marginBottom: '24px' }}>
             {cart.map((item) => (
               <div
@@ -118,7 +128,7 @@ export default function CartPage() {
                   )}
                   <div>
                     <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>{item.name}</h3>
-                    <p style={{ fontSize: '16px', color: '#FF6200', fontWeight: 'bold', marginBottom: '8px' }}>{item.price} $</p>
+                    <p style={{ fontSize: '16px', color: '#FF6200', fontWeight: 'bold', marginBottom: '8px' }}>{Number(item.price).toFixed(2)} $</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <label style={{ fontSize: '14px', color: '#666666' }}>Количество:</label>
                       <input
@@ -146,7 +156,7 @@ export default function CartPage() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333' }}>Итого: {item.price * item.quantity} $</p>
+                  <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333' }}>Итого: {(Number(item.price) * item.quantity).toFixed(2)} $</p>
                   <button
                     onClick={() => removeFromCart(item.id)}
                     style={{
@@ -168,14 +178,12 @@ export default function CartPage() {
             ))}
           </div>
 
-          {/* Итоговая сумма */}
           <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
             <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>
               Общая сумма: <span style={{ color: '#FF6200' }}>{totalPrice.toFixed(2)} $</span>
             </p>
           </div>
 
-          {/* Форма оформления заказа */}
           <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', maxWidth: '400px', margin: '0 auto' }}>
             <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>Оформление заказа</h3>
             <form onSubmit={handleOrderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

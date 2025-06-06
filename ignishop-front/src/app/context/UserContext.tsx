@@ -1,89 +1,91 @@
-// app/context/UserContext.tsx
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
+import { useCartStore } from '../../store/cartStore';
 
 interface User {
-  id?: number;
+  id: number;
   name: string;
   email: string;
-  avatar?: string;
-  is_admin?: boolean;
+  is_admin: boolean;
 }
 
 interface UserContextType {
   user: User | null;
+  loading: boolean;
   refreshUser: () => Promise<void>;
-  setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      const fetchUser = async () => {
-        try {
-          const response = await fetch('http://localhost:8000/api/user', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data);
-            localStorage.setItem('user', JSON.stringify(data));
-          } else {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
-          }
-        } catch (err) {
-          console.error('Ошибка загрузки пользователя:', err);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-        }
-      };
-      fetchUser();
-    }
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const { clearCart } = useCartStore();
 
   const refreshUser = async () => {
+    setLoading(true);
     const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const response = await fetch('http://localhost:8000/api/user', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-          localStorage.setItem('user', JSON.stringify(data));
-        } else {
-          throw new Error('Не удалось обновить пользователя');
-        }
-      } catch (err) {
-        console.error('Ошибка при обновлении пользователя:', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-      }
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await axios.get('http://localhost:8000/api/user', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(response.data);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await axios.post(
+          'http://localhost:8000/api/logout',
+          {},
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      clearCart(); // Очищаем корзину при выходе
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
+
   return (
-    <UserContext.Provider value={{ user, refreshUser, setUser }}>
+    <UserContext.Provider value={{ user, loading, refreshUser, logout }}>
       {children}
     </UserContext.Provider>
   );
 }
 
-export const useUser = (): UserContextType => {
+export function useUser() {
   const context = useContext(UserContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useUser must be used within a UserProvider');
   }
   return context;
-};
+}

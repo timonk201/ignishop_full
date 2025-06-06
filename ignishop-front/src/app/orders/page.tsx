@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { useUser } from '../context/UserContext';
+import { useAuthStore } from '../../store/authStore';
 
 export interface Product {
   id: number;
@@ -31,17 +33,24 @@ export interface Order {
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const router = useRouter();
+  const { user } = useUser();
+  const { openAuthModal } = useAuthStore();
 
   useEffect(() => {
+    if (!user) {
+      openAuthModal();
+      router.push('/');
+      return;
+    }
     const fetchOrders = async () => {
       try {
         const response = await axios.get('http://localhost:8000/api/orders');
-        console.log('API response for orders:', response.data); // Логируем ответ для отладки
+        console.log('API response for orders:', response.data);
         const fetchedOrders = response.data.data.map((order: any) => {
           const total = parseFloat(String(order.total));
           const items = order.items.map((item: Product) => {
             const price = parseFloat(String(item.price));
-            console.log(`Item ${item.id} raw price: ${item.price}, parsed price: ${price}`); // Логируем price
+            console.log(`Item ${item.id} raw price: ${item.price}, parsed price: ${price}`);
             return {
               ...item,
               price: isNaN(price) ? (typeof item.price === 'number' ? item.price : 0) : price,
@@ -60,7 +69,9 @@ export default function OrdersPage() {
       }
     };
     fetchOrders();
-  }, []);
+  }, [user, openAuthModal, router]);
+
+  if (!user) return null;
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>

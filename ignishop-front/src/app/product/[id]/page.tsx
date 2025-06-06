@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useCartStore } from '../../../store/cartStore';
+import { useUser } from '../../context/UserContext';
+import { useAuthStore } from '../../../store/authStore';
 import { FaTrash } from 'react-icons/fa';
 
 interface Category {
@@ -31,7 +33,9 @@ export interface Product {
 export default function ProductDetail() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart, isInCart, updateQuantity, removeFromCart, cart } = useCartStore();
+  const { addToCart, isInCart, updateQuantity, removeFromCart, cart, fetchCart } = useCartStore();
+  const { user, loading: userLoading } = useUser();
+  const { openAuthModal } = useAuthStore();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +57,12 @@ export default function ProductDetail() {
   }, [id]);
 
   useEffect(() => {
+    if (!userLoading && user) {
+      fetchCart(); // Загружаем корзину только после проверки авторизации
+    }
+  }, [user, userLoading, fetchCart]);
+
+  useEffect(() => {
     const cartItem = cart.find((item) => item.id === Number(id));
     if (cartItem) {
       setLocalQuantity(cartItem.quantity);
@@ -62,6 +72,10 @@ export default function ProductDetail() {
   }, [cart, id]);
 
   const handleBuyNow = async () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
     if (product) {
       if (product.stock < 1) {
         alert('Товара нет в наличии.');
@@ -76,6 +90,10 @@ export default function ProductDetail() {
   };
 
   const handleQuantityChange = async (change: number) => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
     if (!product) return;
     const newQuantity = Math.max(1, Math.min(localQuantity + change, product.stock));
     setLocalQuantity(newQuantity);
@@ -85,22 +103,30 @@ export default function ProductDetail() {
         await updateQuantity(product.id, newQuantity);
       } catch (error) {
         alert('Ошибка при обновлении количества. Попробуйте снова.');
-        setLocalQuantity(cartItem.quantity); // Откатываем локальное состояние
+        setLocalQuantity(cartItem.quantity);
       }
     }
   };
 
   const handleRemoveFromCart = async () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
     if (!product) return;
     await removeFromCart(product.id);
     setLocalQuantity(1);
   };
 
   const handleGoToCart = () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
     router.push('/cart');
   };
 
-  if (loading) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Загрузка...</p>;
+  if (userLoading || loading) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Загрузка...</p>;
   if (error) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#FF0000' }}>{error}</p>;
   if (!product) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Товар не найден.</p>;
 
@@ -121,7 +147,6 @@ export default function ProductDetail() {
         onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
         onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
       >
-        {/* Изображение слева */}
         <div style={{ flex: '0 0 400px' }}>
           {product.image ? (
             <img
@@ -140,7 +165,6 @@ export default function ProductDetail() {
           )}
         </div>
 
-        {/* Информация справа */}
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>{product.name}</h1>
           <p style={{ fontSize: '16px', color: '#666666', marginBottom: '16px' }}>

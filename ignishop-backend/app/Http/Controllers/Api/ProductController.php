@@ -31,11 +31,12 @@ class ProductController extends Controller
                 });
             }
 
-            // Поиск по названию, категории и подкатегории
+            // Поиск по названию, категории, подкатегории и описанию
             if ($request->has('search')) {
                 $searchTerm = $request->input('search');
                 $query->where(function ($q) use ($searchTerm) {
                     $q->where('name', 'like', "%{$searchTerm}%")
+                      ->orWhere('description', 'like', "%{$searchTerm}%")
                       ->orWhereHas('category', function ($q) use ($searchTerm) {
                           $q->where('name', 'like', "%{$searchTerm}%");
                       })

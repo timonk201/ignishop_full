@@ -1,15 +1,16 @@
-// app/register/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -23,19 +24,17 @@ export default function RegisterPage() {
         is_admin: false,
       });
       router.push('/login');
-    } catch (err) {
-      if (err.response) {
-        const errorMessage = err.response.data.message || 'Произошла ошибка при регистрации.';
-        const validationErrors = err.response.data.errors || {};
-        const errorDetails = Object.values(validationErrors).flat().join(' ');
-        setError(`${errorMessage} ${errorDetails}`);
-      } else if (err.request) {
-        setError('Не удалось подключиться к серверу. Проверьте, запущен ли сервер.');
-      } else {
-        setError('Произошла неизвестная ошибка. Проверьте консоль для деталей.');
-      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || 'Произошла ошибка при регистрации.';
+      const validationErrors = err.response?.data?.errors || {};
+      const errorDetails = Object.values(validationErrors).flat().join(' ');
+      setError(`${errorMessage} ${errorDetails}`);
       console.error('Ошибка регистрации:', err);
     }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -49,7 +48,7 @@ export default function RegisterPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px', boxSizing: 'border-box' }}
               required
             />
           </div>
@@ -59,19 +58,35 @@ export default function RegisterPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px', boxSizing: 'border-box' }}
               required
             />
           </div>
-          <div>
+          <div style={{ position: 'relative' }}>
             <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Пароль:</label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px' }}
+              style={{ width: '100%', padding: '8px 40px 8px 8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', color: '#333333', fontSize: '14px', boxSizing: 'border-box' }}
               required
             />
+            <button
+              type="button"
+              onClick={togglePasswordVisibility}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(10%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#666666',
+              }}
+            >
+              {showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
+            </button>
           </div>
           {error && <p style={{ color: '#FF0000', fontSize: '14px' }}>{error}</p>}
           <button
