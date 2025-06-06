@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
+import { useFavoriteStore } from '../../store/favoriteStore';
+import { FaHeart, FaTrash } from 'react-icons/fa';
 
 interface User {
   id?: number;
@@ -13,13 +15,27 @@ interface User {
   is_admin?: boolean;
 }
 
+interface Product {
+  id: number;
+  name: string;
+  category: { name: string };
+  subcategory: { name: string } | null;
+  description: string;
+  price: number;
+  stock: number;
+  image?: string;
+}
+
 export default function ProfilePage() {
   const { refreshUser } = useUser();
+  const { favorites, fetchFavorites, removeFromFavorites } = useFavoriteStore();
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editAvatarMode, setEditAvatarMode] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
+  const [favoriteProducts, setFavoriteProducts] = useState<Product[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -67,7 +83,25 @@ export default function ProfilePage() {
     };
 
     fetchUser();
+    fetchFavorites();
   }, [router, cacheBuster]);
+
+  useEffect(() => {
+    const fetchFavoriteProducts = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/favorites', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        setFavoriteProducts(response.data.data);
+      } catch (error) {
+        console.error('Error fetching favorite products:', error);
+      }
+    };
+
+    if (showFavoritesModal) {
+      fetchFavoriteProducts();
+    }
+  }, [showFavoritesModal, favorites]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -188,6 +222,11 @@ export default function ProfilePage() {
           setShowLogoutConfirm(false);
         });
     }
+  };
+
+  const handleRemoveFromFavorites = async (productId: number) => {
+    await removeFromFavorites(productId);
+    setFavoriteProducts((prev) => prev.filter((product) => product.id !== productId));
   };
 
   const handleImageError = () => {
@@ -426,7 +465,7 @@ export default function ProfilePage() {
             </div>
             <p><strong style={{ color: '#003087' }}>Имя:</strong> {user.name}</p>
             <p><strong style={{ color: '#003087' }}>Email:</strong> {user.email}</p>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setEditMode(true)}
                 style={{
@@ -462,6 +501,27 @@ export default function ProfilePage() {
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#003087')}
               >
                 Мои заказы
+              </button>
+              <button
+                onClick={() => setShowFavoritesModal(true)}
+                style={{
+                  backgroundColor: '#FF0000',
+                  color: '#FFFFFF',
+                  padding: '12px 24px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'semibold',
+                  transition: 'background-color 0.3s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#CC0000')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF0000')}
+              >
+                <FaHeart size={16} /> Избранное
               </button>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
@@ -554,6 +614,135 @@ export default function ProfilePage() {
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
               >
                 Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFavoritesModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowFavoritesModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              padding: '24px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              maxWidth: '800px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '24px', color: '#003087', marginBottom: '16px', textAlign: 'center' }}>
+              Избранное
+            </h3>
+            {favoriteProducts.length === 0 ? (
+              <p style={{ textAlign: 'center', fontSize: '16px', color: '#666666' }}>
+                У вас пока нет избранных товаров.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                {favoriteProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    style={{
+                      backgroundColor: '#F9F9F9',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      transition: 'transform 0.3s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                    onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  >
+                    {product.image ? (
+                      <img
+                        src={`http://localhost:8000${product.image}`}
+                        alt={product.name}
+                        style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
+                        onError={(e) => console.error(`Failed to load image for ${product.name}: ${product.image}`)}
+                      />
+                    ) : (
+                      <div style={{ width: '100px', height: '100px', backgroundColor: '#e0e0e0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {product.name}
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <h4
+                        style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333', marginBottom: '8px', cursor: 'pointer' }}
+                        onClick={() => router.push(`/product/${product.id}`)}
+                        onMouseOver={(e) => (e.currentTarget.style.color = '#FF6200')}
+                        onMouseOut={(e) => (e.currentTarget.style.color = '#333333')}
+                      >
+                        {product.name}
+                      </h4>
+                      <p style={{ fontSize: '14px', color: '#666666', marginBottom: '8px' }}>
+                        {product.category.name}{product.subcategory ? ` / ${product.subcategory.name}` : ''}
+                      </p>
+                      <p style={{ fontSize: '16px', color: '#FF6200', fontWeight: 'bold' }}>
+                        {product.price} $
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFromFavorites(product.id)}
+                      style={{
+                        backgroundColor: '#FF0000',
+                        color: '#FFFFFF',
+                        padding: '8px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px',
+                        transition: 'background-color 0.3s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#CC0000')}
+                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF0000')}
+                    >
+                      <FaTrash size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+              <button
+                onClick={() => setShowFavoritesModal(false)}
+                style={{
+                  backgroundColor: '#666666',
+                  color: '#FFFFFF',
+                  padding: '12px 24px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  transition: 'background-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
+              >
+                Закрыть
               </button>
             </div>
           </div>

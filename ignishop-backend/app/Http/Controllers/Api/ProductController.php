@@ -46,15 +46,33 @@ class ProductController extends Controller
                 });
             }
 
+            // Сортировка по цене
+            if ($request->has('sort')) {
+                $sortOrder = $request->input('sort');
+                if ($sortOrder === 'asc') {
+                    $query->orderBy('price', 'asc');
+                } elseif ($sortOrder === 'desc') {
+                    $query->orderBy('price', 'desc');
+                }
+            }
+
             // Пагинация
             $perPage = $request->input('per_page', 8); // По умолчанию 8 товаров на страницу
             $products = $query->paginate($perPage);
+
+            // Добавляем информацию о том, находится ли товар в избранном
+            $user = $request->user();
+            $products->getCollection()->transform(function ($product) use ($user) {
+                $product->is_favorited = $user ? $user->favorites()->where('product_id', $product->id)->exists() : false;
+                return $product;
+            });
 
             Log::info('Products fetched successfully', [
                 'count' => $products->total(),
                 'per_page' => $perPage,
                 'current_page' => $products->currentPage(),
                 'search' => $request->input('search'),
+                'sort' => $request->input('sort'),
             ]);
 
             return response()->json([

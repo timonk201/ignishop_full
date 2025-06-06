@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 import { useCartStore } from '../../store/cartStore';
+import { useFavoriteStore } from '../../store/favoriteStore';
 
 interface User {
   id: number;
@@ -24,6 +25,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { clearCart } = useCartStore();
+  const { fetchFavorites } = useFavoriteStore();
 
   const refreshUser = async () => {
     setLoading(true);
@@ -38,6 +40,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(response.data);
+      await fetchFavorites(); // Загружаем избранное при авторизации
     } catch (error) {
       console.error('Error fetching user:', error);
       setUser(null);

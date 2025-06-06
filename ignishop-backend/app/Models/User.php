@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
@@ -22,4 +23,10 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'is_admin' => 'boolean',
     ];
+
+    public function favorites(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'favorites', 'user_id', 'product_id')
+                    ->withTimestamps();
+    }
 }

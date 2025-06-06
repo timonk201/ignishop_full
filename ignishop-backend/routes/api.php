@@ -10,6 +10,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Api\FavoriteController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -45,4 +46,10 @@ Route::get('/subcategories', [SubcategoryController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/update', [UserController::class, 'update']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'index']);
+    Route::post('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'store']);
+    Route::delete('/favorites/{productId}', [App\Http\Controllers\Api\FavoriteController::class, 'destroy']);
 });

@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useCartStore } from '../../../store/cartStore';
+import { useFavoriteStore } from '../../../store/favoriteStore';
 import { useUser } from '../../context/UserContext';
 import { useAuthStore } from '../../../store/authStore';
-import { FaTrash } from 'react-icons/fa';
+import { FaTrash, FaHeart, FaHeartBroken } from 'react-icons/fa';
 
 interface Category {
   key: string;
@@ -28,12 +29,14 @@ export interface Product {
   image?: string;
   created_at: string;
   updated_at: string;
+  is_favorited?: boolean;
 }
 
 export default function ProductDetail() {
   const { id } = useParams();
   const router = useRouter();
   const { addToCart, isInCart, updateQuantity, removeFromCart, cart, fetchCart } = useCartStore();
+  const { addToFavorites, removeFromFavorites, isInFavorites, fetchFavorites } = useFavoriteStore();
   const { user, loading: userLoading } = useUser();
   const { openAuthModal } = useAuthStore();
   const [product, setProduct] = useState<Product | null>(null);
@@ -58,9 +61,10 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (!userLoading && user) {
-      fetchCart(); // Загружаем корзину только после проверки авторизации
+      fetchCart(); // Загружаем корзину
+      fetchFavorites(); // Загружаем избранное
     }
-  }, [user, userLoading, fetchCart]);
+  }, [user, userLoading, fetchCart, fetchFavorites]);
 
   useEffect(() => {
     const cartItem = cart.find((item) => item.id === Number(id));
@@ -126,11 +130,26 @@ export default function ProductDetail() {
     router.push('/cart');
   };
 
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    if (!product) return;
+
+    if (isInFavorites(product.id)) {
+      await removeFromFavorites(product.id);
+    } else {
+      await addToFavorites(product.id);
+    }
+  };
+
   if (userLoading || loading) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Загрузка...</p>;
   if (error) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#FF0000' }}>{error}</p>;
   if (!product) return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Товар не найден.</p>;
 
   const inCart = isInCart(product.id);
+  const inFavorites = isInFavorites(product.id);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
@@ -178,7 +197,7 @@ export default function ProductDetail() {
           <p style={{ fontSize: '16px', color: '#333333', marginBottom: '16px' }}>
             На складе: {product.stock} единиц
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
             <button
               onClick={inCart ? handleGoToCart : handleBuyNow}
               style={{
@@ -263,6 +282,37 @@ export default function ProductDetail() {
                 </button>
               </div>
             )}
+
+            <button
+              onClick={handleToggleFavorite}
+              style={{
+                backgroundColor: inFavorites ? '#FF0000' : '#FFFFFF',
+                color: inFavorites ? '#FFFFFF' : '#FF0000',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: '2px solid #FF0000',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'semibold',
+                transition: 'background-color 0.3s, color 0.3s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+              onMouseOver={(e) => {
+                if (inFavorites) {
+                  e.currentTarget.style.backgroundColor = '#CC0000';
+                } else {
+                  e.currentTarget.style.backgroundColor = '#FFF5F5';
+                }
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = inFavorites ? '#FF0000' : '#FFFFFF';
+              }}
+            >
+              {inFavorites ? <FaHeartBroken size={16} /> : <FaHeart size={16} />}
+              {inFavorites ? 'Убрать из избранного' : 'В избранное'}
+            </button>
           </div>
           {inCart && (
             <p

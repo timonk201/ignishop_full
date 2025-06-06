@@ -121,7 +121,7 @@ export default function Home() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [filters.category, filters.subcategory]);
+  }, [filters.category, filters.subcategory, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -132,6 +132,7 @@ export default function Home() {
       const params = {
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
       };
@@ -204,18 +205,12 @@ export default function Home() {
     };
   }, [hasMore, loadingMore, isFirstPageLoaded]);
 
-  const filteredProducts = products
-    .filter((product) => {
-      const matchesPrice =
-        product.price >= filters.minPrice && product.price <= filters.maxPrice;
-      const matchesStock = !filters.inStockOnly || product.stock > 0;
-      return matchesPrice && matchesStock;
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'asc') return a.price - b.price;
-      if (sortOrder === 'desc') return b.price - a.price;
-      return 0;
-    });
+  const filteredProducts = products.filter((product) => {
+    const matchesPrice =
+      product.price >= filters.minPrice && product.price <= filters.maxPrice;
+    const matchesStock = !filters.inStockOnly || product.stock > 0;
+    return matchesPrice && matchesStock;
+  });
 
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>

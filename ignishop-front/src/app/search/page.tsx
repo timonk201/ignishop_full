@@ -82,7 +82,7 @@ export default function SearchPage() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [query, filters.category, filters.subcategory]);
+  }, [query, filters.category, filters.subcategory, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -94,6 +94,7 @@ export default function SearchPage() {
         search: query || undefined,
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
       };
@@ -203,18 +204,12 @@ export default function SearchPage() {
     setSortOrder(e.target.value);
   };
 
-  const filteredProducts = products
-    .filter((product) => {
-      const matchesPrice =
-        product.price >= filters.minPrice && product.price <= filters.maxPrice;
-      const matchesStock = !filters.inStockOnly || product.stock > 0;
-      return matchesPrice && matchesStock;
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'asc') return a.price - b.price;
-      if (sortOrder === 'desc') return b.price - a.price;
-      return 0;
-    });
+  const filteredProducts = products.filter((product) => {
+    const matchesPrice =
+      product.price >= filters.minPrice && product.price <= filters.maxPrice;
+    const matchesStock = !filters.inStockOnly || product.stock > 0;
+    return matchesPrice && matchesStock;
+  });
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px', display: 'flex', gap: '16px' }}>
