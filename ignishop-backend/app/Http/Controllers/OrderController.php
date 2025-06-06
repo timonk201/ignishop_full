@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth:api');
+    }
+
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -38,7 +43,7 @@ class OrderController extends Controller
 
             // Создаём заказ
             $order = Order::create([
-                'user_id' => auth()->id(), // Опционально, если есть авторизация
+                'user_id' => auth()->id(),
                 'items' => $validatedData['items'],
                 'total' => floatval($validatedData['total']),
                 'delivery_method' => $validatedData['delivery_method'],
@@ -75,7 +80,7 @@ class OrderController extends Controller
 
     public function index()
     {
-        $orders = Order::where('user_id', auth()->id())->get(); // Фильтруем заказы по текущему пользователю
+        $orders = Order::where('user_id', auth()->id())->get();
 
         // Обрабатываем каждый заказ, добавляя информацию о товарах
         $orders->transform(function ($order) {
@@ -85,11 +90,11 @@ class OrderController extends Controller
                     'id' => $item['id'],
                     'quantity' => $item['quantity'],
                     'name' => $product ? $product->name : 'Товар не найден',
-                    'price' => $product ? (float) $product->price : 0, // Добавляем price
-                    'image' => $product && $product->image ? $product->image : null, // Добавляем image, если есть
+                    'price' => $product ? (float) $product->price : 0,
+                    'image' => $product && $product->image ? $product->image : null,
                 ];
             })->toArray();
-            $order->total = (float) $order->total; // Убедимся, что total — число
+            $order->total = (float) $order->total;
             return $order;
         });
 

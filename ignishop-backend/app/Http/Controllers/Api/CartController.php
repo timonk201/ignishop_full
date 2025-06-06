@@ -9,6 +9,11 @@ use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth:api');
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -25,7 +30,7 @@ class CartController extends Controller
         }
 
         $cartItem = Cart::where('product_id', $request->product_id)
-            ->where('user_id', auth()->id() ?? null)
+            ->where('user_id', auth()->id())
             ->first();
 
         if ($cartItem) {
@@ -39,7 +44,7 @@ class CartController extends Controller
             $cartItem->save();
         } else {
             $cartItem = Cart::create([
-                'user_id' => auth()->id() ?? null,
+                'user_id' => auth()->id(),
                 'product_id' => $request->product_id,
                 'quantity' => $request->quantity,
             ]);
@@ -58,7 +63,7 @@ class CartController extends Controller
         ]);
 
         $cartItem = Cart::where('product_id', $id)
-            ->where('user_id', auth()->id() ?? null)
+            ->where('user_id', auth()->id())
             ->firstOrFail();
 
         $product = Product::findOrFail($id);
@@ -80,7 +85,9 @@ class CartController extends Controller
 
     public function destroy($id)
     {
-        $cartItem = Cart::where('product_id', $id)->where('user_id', auth()->id() ?? null)->firstOrFail();
+        $cartItem = Cart::where('product_id', $id)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
         $cartItem->delete();
 
         return response()->json(['status' => 'success'], 200);
@@ -88,13 +95,20 @@ class CartController extends Controller
 
     public function clear()
     {
-        Cart::where('user_id', auth()->id() ?? null)->delete();
-        return response()->json(['message' => 'Cart cleared'], 200);
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        // Очистка корзины для текущего пользователя
+        Cart::where('user_id', $user->id)->delete();
+
+        return response()->json(['message' => 'Cart cleared successfully'], 200);
     }
 
     public function index()
     {
-        $cartItems = Cart::with('product')->where('user_id', auth()->id() ?? null)->get();
+        $cartItems = Cart::with('product')->where('user_id', auth()->id())->get();
         return response()->json(['data' => $cartItems], 200);
     }
 }

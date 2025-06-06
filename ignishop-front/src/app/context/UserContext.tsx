@@ -24,8 +24,24 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { clearCart } = useCartStore();
+  const { clearCart, syncLocalCart } = useCartStore();
   const { fetchFavorites } = useFavoriteStore();
+
+  // Настройка перехватчика для обработки ошибок 401
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response?.status === 401) {
+          // Если получили 401, выполняем выход
+          await logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
 
   const refreshUser = async () => {
     setLoading(true);
@@ -40,12 +56,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(response.data);
-      await fetchFavorites(); // Загружаем избранное при авторизации
+      await fetchFavorites();
+      await syncLocalCart(response.data);
     } catch (error) {
       console.error('Error fetching user:', error);
-      setUser(null);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      await logout();
     } finally {
       setLoading(false);
     }
@@ -69,7 +84,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       setUser(null);
-      clearCart(); // Очищаем корзину при выходе
+      await clearCart(null);
       setLoading(false);
     }
   };

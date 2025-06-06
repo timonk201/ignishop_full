@@ -30,30 +30,38 @@ export interface Order {
 }
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, clearCart, fetchCart } = useCartStore();
-  const { user } = useUser();
+  const { cart, localCart, updateQuantity, removeFromCart, clearCart, fetchCart } = useCartStore();
+  const { user, loading: userLoading } = useUser();
   const { openAuthModal } = useAuthStore();
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
   const [address, setAddress] = useState('');
   const router = useRouter();
 
+  // Определяем, какую корзину использовать
+  const activeCart = user ? cart : localCart;
+
   useEffect(() => {
+    if (userLoading) return; // Ждём завершения загрузки пользователя
     if (!user) {
       openAuthModal();
       router.push('/');
       return;
     }
-    fetchCart();
-  }, [fetchCart, user, openAuthModal, router]);
+    fetchCart(user);
+  }, [fetchCart, user, userLoading, openAuthModal, router]);
+
+  if (userLoading) {
+    return <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Загрузка...</p>;
+  }
 
   if (!user) return null;
 
-  const totalPrice = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+  const totalPrice = activeCart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    for (const item of cart) {
+    for (const item of activeCart) {
       if (item.quantity > item.stock) {
         alert(`Недостаточно товара "${item.name}" на складе. Доступно: ${item.stock}, в корзине: ${item.quantity}.`);
         return;
@@ -61,7 +69,7 @@ export default function CartPage() {
     }
 
     const orderData = {
-      items: cart.map((item) => ({
+      items: activeCart.map((item) => ({
         id: item.id,
         name: item.name,
         category: item.category,
@@ -77,9 +85,11 @@ export default function CartPage() {
     };
 
     try {
-      const response = await axios.post('http://localhost:8000/api/orders', orderData);
+      const response = await axios.post('http://localhost:8000/api/orders', orderData, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
       console.log('Заказ сохранен на сервере:', response.data);
-      await clearCart();
+      await clearCart(user);
       alert('Заказ успешно оформлен!');
       router.push('/orders');
     } catch (error: any) {
@@ -92,12 +102,12 @@ export default function CartPage() {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
       <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333', marginBottom: '24px' }}>Корзина</h2>
-      {cart.length === 0 ? (
+      {activeCart.length === 0 ? (
         <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Корзина пуста</p>
       ) : (
         <>
           <div style={{ marginBottom: '24px' }}>
-            {cart.map((item) => (
+            {activeCart.map((item) => (
               <div
                 key={item.id}
                 style={{
@@ -136,7 +146,7 @@ export default function CartPage() {
                         min="1"
                         max={item.stock}
                         value={item.quantity}
-                        onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
+                        onChange={(e) => updateQuantity(item.id, Number(e.target.value), user)}
                         style={{
                           width: '80px',
                           padding: '8px',
@@ -158,7 +168,7 @@ export default function CartPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333' }}>Итого: {(Number(item.price) * item.quantity).toFixed(2)} $</p>
                   <button
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => removeFromCart(item.id, user)}
                     style={{
                       backgroundColor: '#666666',
                       color: '#FFFFFF',

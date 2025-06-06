@@ -35,7 +35,7 @@ export interface Product {
 export default function ProductDetail() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart, isInCart, updateQuantity, removeFromCart, cart, fetchCart } = useCartStore();
+  const { addToCart, isInCart, updateQuantity, removeFromCart, cart, localCart, fetchCart } = useCartStore();
   const { addToFavorites, removeFromFavorites, isInFavorites, fetchFavorites } = useFavoriteStore();
   const { user, loading: userLoading } = useUser();
   const { openAuthModal } = useAuthStore();
@@ -43,6 +43,9 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [localQuantity, setLocalQuantity] = useState(1);
+
+  // Определяем, какую корзину использовать
+  const activeCart = user ? cart : localCart;
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -61,19 +64,19 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (!userLoading && user) {
-      fetchCart(); // Загружаем корзину
-      fetchFavorites(); // Загружаем избранное
+      fetchCart(user);
+      fetchFavorites();
     }
   }, [user, userLoading, fetchCart, fetchFavorites]);
 
   useEffect(() => {
-    const cartItem = cart.find((item) => item.id === Number(id));
+    const cartItem = activeCart.find((item) => item.id === Number(id));
     if (cartItem) {
       setLocalQuantity(cartItem.quantity);
     } else {
       setLocalQuantity(1);
     }
-  }, [cart, id]);
+  }, [activeCart, id]);
 
   const handleBuyNow = async () => {
     if (!user) {
@@ -86,7 +89,7 @@ export default function ProductDetail() {
         return;
       }
       try {
-        await addToCart({ ...product, quantity: localQuantity });
+        await addToCart({ ...product, quantity: localQuantity }, user);
       } catch (error) {
         alert('Ошибка при добавлении в корзину. Попробуйте снова.');
       }
@@ -101,10 +104,10 @@ export default function ProductDetail() {
     if (!product) return;
     const newQuantity = Math.max(1, Math.min(localQuantity + change, product.stock));
     setLocalQuantity(newQuantity);
-    const cartItem = cart.find((item) => item.id === product.id);
+    const cartItem = activeCart.find((item) => item.id === product.id);
     if (cartItem) {
       try {
-        await updateQuantity(product.id, newQuantity);
+        await updateQuantity(product.id, newQuantity, user);
       } catch (error) {
         alert('Ошибка при обновлении количества. Попробуйте снова.');
         setLocalQuantity(cartItem.quantity);
@@ -118,7 +121,7 @@ export default function ProductDetail() {
       return;
     }
     if (!product) return;
-    await removeFromCart(product.id);
+    await removeFromCart(product.id, user);
     setLocalQuantity(1);
   };
 

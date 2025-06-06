@@ -18,15 +18,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Ресурсы
 Route::apiResource('products', ProductController::class);
-Route::apiResource('cart', CartController::class)->except(['update', 'show']);
-
-// Кастомные маршруты для корзины
-Route::delete('/cart/clear', [CartController::class, 'clear']);
-Route::put('/cart/{id}', [CartController::class, 'update']); // Добавляем маршрут для PUT
-
-// Маршруты для заказов
-Route::post('/orders', [OrderController::class, 'store']);
-Route::get('/orders', [OrderController::class, 'index']);
 
 // Аутентификация
 Route::post('/register', [AuthController::class, 'register']);
@@ -52,4 +43,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'index']);
     Route::post('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'store']);
     Route::delete('/favorites/{productId}', [App\Http\Controllers\Api\FavoriteController::class, 'destroy']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::delete('cart/clear', [CartController::class, 'clear']); // Явно указываем перед apiResource
+    Route::apiResource('cart', CartController::class);
+    Route::apiResource('orders', OrderController::class);
 });
