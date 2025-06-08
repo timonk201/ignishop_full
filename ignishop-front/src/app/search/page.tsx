@@ -43,7 +43,7 @@ export default function SearchPage() {
     subcategory: '',
     minPrice: 0,
     maxPrice: 1000,
-    inStockOnly: false,
+    inStockOnly: true,
   });
 
   const [sortOrder, setSortOrder] = useState('default');
@@ -82,7 +82,7 @@ export default function SearchPage() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [query, filters.category, filters.subcategory, sortOrder]);
+  }, [query, filters.category, filters.subcategory, filters.inStockOnly, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -94,12 +94,16 @@ export default function SearchPage() {
         search: query || undefined,
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
+        maxPrice: filters.maxPrice < 1000 ? filters.maxPrice : undefined,
+        inStockOnly: filters.inStockOnly,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
       };
+      console.log('Request params:', params); // Отладка параметров
       const response = await axios.get('http://localhost:8000/api/products', { params });
-      console.log('Fetched products:', response.data);
+      console.log('Fetched products response:', response.data);
       const fetchedProducts = response.data.data.map((product: Product) => ({
         ...product,
         price: parseFloat(product.price as string),
@@ -114,15 +118,12 @@ export default function SearchPage() {
       });
 
       setHasMore(pageNum < response.data.last_page);
+      setFilters((prev) => ({
+        ...prev,
+        maxPrice: response.data.max_price || 1000, // Обновляем maxPrice при каждом запросе
+      }));
       if (pageNum === 1) {
         setIsFirstPageLoaded(true);
-        if (fetchedProducts.length > 0) {
-          const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
-          setFilters((prev) => ({
-            ...prev,
-            maxPrice: maxProductPrice,
-          }));
-        }
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -139,7 +140,6 @@ export default function SearchPage() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        console.log('Observer triggered:', { isIntersecting: entries[0].isIntersecting, hasMore, loadingMore, isFetching: isFetching.current, isFirstPageLoaded });
         if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
@@ -174,7 +174,16 @@ export default function SearchPage() {
       setFilters((prev) => ({
         ...prev,
         category: value,
-        subcategory: '',
+        subcategory: '', // Сбрасываем подкатегорию при смене категории
+        minPrice: 0, // Сбрасываем minPrice при смене категории
+        maxPrice: 1000, // Сбрасываем maxPrice при смене категории
+      }));
+    } else if (name === 'subcategory') {
+      setFilters((prev) => ({
+        ...prev,
+        subcategory: value,
+        minPrice: 0, // Сбрасываем minPrice при смене подкатегории
+        maxPrice: 1000, // Сбрасываем maxPrice при смене подкатегории
       }));
     } else if (name === 'minPrice') {
       newMinPrice = parseFloat(value) || 0;
@@ -185,7 +194,7 @@ export default function SearchPage() {
         maxPrice: newMaxPrice,
       }));
     } else if (name === 'maxPrice') {
-      newMaxPrice = parseFloat(value) || Math.max(...products.map((p) => p.price), 1000);
+      newMaxPrice = parseFloat(value) || 1000;
       if (newMaxPrice < filters.minPrice) newMinPrice = newMaxPrice;
       setFilters((prev) => ({
         ...prev,
@@ -198,18 +207,13 @@ export default function SearchPage() {
         [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
+    setPage(1);
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOrder(e.target.value);
+    setPage(1);
   };
-
-  const filteredProducts = products.filter((product) => {
-    const matchesPrice =
-      product.price >= filters.minPrice && product.price <= filters.maxPrice;
-    const matchesStock = !filters.inStockOnly || product.stock > 0;
-    return matchesPrice && matchesStock;
-  });
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px', display: 'flex', gap: '16px' }}>
@@ -233,17 +237,7 @@ export default function SearchPage() {
             name="category"
             value={filters.category}
             onChange={handleFilterChange}
-            style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              width: '100%',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
-            }}
+            style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
             onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
             onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
           >
@@ -264,28 +258,16 @@ export default function SearchPage() {
               name="subcategory"
               value={filters.subcategory}
               onChange={handleFilterChange}
-              style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                width: '100%',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
               <option value="">Все</option>
-              {categories
-                .find((cat) => cat.key === filters.category)
-                ?.subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.name}>
-                    {subcategory.name}
-                  </option>
-                ))}
+              {categories.find((cat) => cat.key === filters.category)?.subcategories.map((subcategory) => (
+                <option key={subcategory.id} value={subcategory.name}>
+                  {subcategory.name}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -300,17 +282,7 @@ export default function SearchPage() {
               value={filters.minPrice}
               onChange={handleFilterChange}
               min="0"
-              style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px 0 0 20px',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '20px 0 0 20px', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -320,17 +292,7 @@ export default function SearchPage() {
               value={filters.maxPrice}
               onChange={handleFilterChange}
               min={filters.minPrice}
-              style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '0 20px 20px 0',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'background-color 0.3s',
-              }}
+              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '0 20px 20px 0', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -339,7 +301,7 @@ export default function SearchPage() {
             <Slider
               range
               min={0}
-              max={Math.max(...products.map((p) => p.price), 1000)}
+              max={filters.maxPrice}
               value={[filters.minPrice, filters.maxPrice]}
               onChange={(value: number | number[]) => {
                 if (Array.isArray(value)) {
@@ -361,20 +323,36 @@ export default function SearchPage() {
           </div>
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
-            <input
-              type="checkbox"
-              name="inStockOnly"
-              checked={filters.inStockOnly}
-              onChange={handleFilterChange}
-              style={{
-                marginRight: '8px',
-                accentColor: '#ff6200',
-                cursor: 'pointer',
-                width: '16px',
-                height: '16px',
-              }}
-            />
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="inStockOnly"
+                checked={filters.inStockOnly}
+                onChange={handleFilterChange}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.inStockOnly ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.inStockOnly ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.inStockOnly && (
+                  <svg
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
             Только в наличии
           </label>
         </div>
@@ -389,16 +367,7 @@ export default function SearchPage() {
             <select
               value={sortOrder}
               onChange={handleSortChange}
-              style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
@@ -407,23 +376,16 @@ export default function SearchPage() {
               <option value="desc">По убыванию цены</option>
             </select>
           </div>
-          {filteredProducts.length === 0 && !loadingMore && (
+          {products.length === 0 && !loadingMore && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>
               Товары не найдены.
             </p>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-            {filteredProducts.map((product, index) => (
+            {products.map((product, index) => (
               <div
                 key={`${product.id}-${index}`}
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  overflow: 'hidden',
-                  transition: 'transform 0.3s',
-                  cursor: 'pointer',
-                }}
+                style={{ backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', transition: 'transform 0.3s', cursor: 'pointer' }}
                 onClick={() => router.push(`/product/${product.id}`)}
                 onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
                 onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
@@ -448,15 +410,7 @@ export default function SearchPage() {
                   <p style={{ fontSize: '14px', color: '#666666', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {product.description}
                   </p>
-                  <p
-                    style={{
-                      width: '100%',
-                      textAlign: 'center',
-                      fontSize: '16px',
-                      color: '#333333',
-                      padding: '8px 0',
-                    }}
-                  >
+                  <p style={{ width: '100', textAlign: 'center', fontSize: '16px', color: '#333333', padding: '8px 0' }}>
                     Цена: {product.price} $
                   </p>
                 </div>
@@ -468,7 +422,7 @@ export default function SearchPage() {
               Загрузка...
             </p>
           )}
-          {!hasMore && filteredProducts.length > 0 && (
+          {!hasMore && products.length > 0 && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#666666', marginTop: '16px' }}>
               Больше товаров нет.
             </p>

@@ -29,6 +29,7 @@ class ProductController extends Controller
                 $query->whereHas('subcategory', function ($q) use ($subcategoryName) {
                     $q->where('name', $subcategoryName);
                 });
+                Log::info('Filtering by subcategory', ['subcategory' => $subcategoryName, 'count' => $query->count()]);
             }
 
             // Поиск по названию, категории, подкатегории и описанию
@@ -46,6 +47,23 @@ class ProductController extends Controller
                 });
             }
 
+            // Фильтрация по цене
+            if ($request->has('minPrice')) {
+                $query->where('price', '>=', $request->input('minPrice'));
+            }
+            if ($request->has('maxPrice')) {
+                $query->where('price', '<=', $request->input('maxPrice'));
+            }
+
+            // Фильтрация по наличию
+            $inStockOnly = filter_var($request->input('inStockOnly', 'false'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($request->has('inStockOnly') && $inStockOnly) {
+                $query->where('stock', '>', 0);
+                Log::info('Applying inStockOnly filter', ['inStockOnly' => $inStockOnly]);
+            } else {
+                Log::info('Not applying inStockOnly filter', ['inStockOnly' => $inStockOnly]);
+            }
+
             // Сортировка по цене
             if ($request->has('sort')) {
                 $sortOrder = $request->input('sort');
@@ -60,6 +78,34 @@ class ProductController extends Controller
             $perPage = $request->input('per_page', 8); // По умолчанию 8 товаров на страницу
             $products = $query->paginate($perPage);
 
+            // Максимальная цена на основе текущих фильтров
+            $maxPriceQuery = Product::query();
+            if ($request->has('category')) {
+                $maxPriceQuery->whereHas('category', function ($q) use ($request) {
+                    $q->where('key', $request->input('category'));
+                });
+            }
+            if ($request->has('subcategory')) {
+                $subcategoryName = $request->input('subcategory');
+                $maxPriceQuery->whereHas('subcategory', function ($q) use ($subcategoryName) {
+                    $q->where('name', $subcategoryName);
+                });
+            }
+            if ($request->has('search')) {
+                $searchTerm = $request->input('search');
+                $maxPriceQuery->where(function ($q) use ($searchTerm) {
+                    $q->where('name', 'like', "%{$searchTerm}%")
+                      ->orWhere('description', 'like', "%{$searchTerm}%")
+                      ->orWhereHas('category', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      })
+                      ->orWhereHas('subcategory', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      });
+                });
+            }
+            $maxPrice = $maxPriceQuery->max('price') ?: 1000;
+
             // Добавляем информацию о том, находится ли товар в избранном
             $user = $request->user();
             $products->getCollection()->transform(function ($product) use ($user) {
@@ -73,6 +119,8 @@ class ProductController extends Controller
                 'current_page' => $products->currentPage(),
                 'search' => $request->input('search'),
                 'sort' => $request->input('sort'),
+                'inStockOnly' => $inStockOnly,
+                'subcategory' => $request->input('subcategory'),
             ]);
 
             return response()->json([
@@ -82,6 +130,7 @@ class ProductController extends Controller
                 'per_page' => $products->perPage(),
                 'current_page' => $products->currentPage(),
                 'last_page' => $products->lastPage(),
+                'max_price' => $maxPrice, // Максимальная цена с учётом фильтров
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching products', [

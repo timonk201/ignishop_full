@@ -52,7 +52,7 @@ export default function Home() {
     subcategory: '',
     minPrice: 0,
     maxPrice: 1000,
-    inStockOnly: false,
+    inStockOnly: true,
   });
 
   const [sortOrder, setSortOrder] = useState('default');
@@ -67,34 +67,14 @@ export default function Home() {
 
   const perPage = 8;
 
-  // Состояние для баннеров
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
 
-  // Обновлённые данные для баннеров с русскими названиями подкатегорий
   const banners: Banner[] = [
-    {
-      id: 1,
-      title: 'Ноутбуки со скидкой до 50%!',
-      description: 'Обновите свой гаджет прямо сейчас!',
-      image: '/banners/laptop.jpg',
-      link: '/category/electronics?subcategory=Ноутбуки',
-    },
-    {
-      id: 2,
-      title: 'Сезонная распродажа одежды!',
-      description: 'Скидки до 70% на модные коллекции!',
-      image: '/banners/clothing.jpg',
-      link: '/category/clothing',
-    },
-    {
-      id: 3,
-      title: 'Спортивная одежда для активного отдыха!',
-      description: 'Подготовьтесь к лету с нами!',
-      image: '/banners/sports.jpg',
-      link: '/category/sports?subcategory=Спортивная одежда',
-    },
+    { id: 1, title: 'Ноутбуки со скидкой до 50%!', description: 'Обновите свой гаджет прямо сейчас!', image: '/banners/laptop.jpg', link: '/category/electronics?subcategory=Ноутбуки' },
+    { id: 2, title: 'Сезонная распродажа одежды!', description: 'Скидки до 70% на модные коллекции!', image: '/banners/clothing.jpg', link: '/category/clothing' },
+    { id: 3, title: 'Спортивная одежда для активного отдыха!', description: 'Подготовьтесь к лету с нами!', image: '/banners/sports.jpg', link: '/category/sports?subcategory=Спортивная одежда' },
   ];
 
   useEffect(() => {
@@ -121,7 +101,7 @@ export default function Home() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [filters.category, filters.subcategory, sortOrder]);
+  }, [filters.category, filters.subcategory, filters.inStockOnly, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -132,12 +112,16 @@ export default function Home() {
       const params = {
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
+        maxPrice: filters.maxPrice < 1000 ? filters.maxPrice : undefined,
+        inStockOnly: filters.inStockOnly,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
       };
+      console.log('Request params:', params); // Отладка параметров
       const response = await axios.get('http://localhost:8000/api/products', { params });
-      console.log('Fetched products:', response.data);
+      console.log('Fetched products response:', response.data);
       const fetchedProducts = response.data.data.map((product: Product) => ({
         ...product,
         price: parseFloat(product.price as string),
@@ -152,14 +136,11 @@ export default function Home() {
       });
 
       setHasMore(pageNum < response.data.last_page);
+      setFilters((prev) => ({
+        ...prev,
+        maxPrice: response.data.max_price || 1000, // Обновляем maxPrice при каждом запросе
+      }));
       if (pageNum === 1) {
-        if (fetchedProducts.length > 0) {
-          const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
-          setFilters((prev) => ({
-            ...prev,
-            maxPrice: maxProductPrice,
-          }));
-        }
         setIsFirstPageLoaded(true);
       }
     } catch (error) {
@@ -181,7 +162,6 @@ export default function Home() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        console.log('Observer triggered:', { isIntersecting: entries[0].isIntersecting, hasMore, loadingMore, isFetching: isFetching.current, isFirstPageLoaded });
         if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
@@ -205,13 +185,6 @@ export default function Home() {
     };
   }, [hasMore, loadingMore, isFirstPageLoaded]);
 
-  const filteredProducts = products.filter((product) => {
-    const matchesPrice =
-      product.price >= filters.minPrice && product.price <= filters.maxPrice;
-    const matchesStock = !filters.inStockOnly || product.stock > 0;
-    return matchesPrice && matchesStock;
-  });
-
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -223,7 +196,16 @@ export default function Home() {
       setFilters((prev) => ({
         ...prev,
         category: value,
-        subcategory: '',
+        subcategory: '', // Сбрасываем подкатегорию при смене категории
+        minPrice: 0, // Сбрасываем minPrice при смене категории
+        maxPrice: 1000, // Сбрасываем maxPrice при смене категории
+      }));
+    } else if (name === 'subcategory') {
+      setFilters((prev) => ({
+        ...prev,
+        subcategory: value,
+        minPrice: 0, // Сбрасываем minPrice при смене подкатегории
+        maxPrice: 1000, // Сбрасываем maxPrice при смене подкатегории
       }));
     } else if (name === 'minPrice') {
       newMinPrice = parseFloat(value) || 0;
@@ -234,7 +216,7 @@ export default function Home() {
         maxPrice: newMaxPrice,
       }));
     } else if (name === 'maxPrice') {
-      newMaxPrice = parseFloat(value) || Math.max(...products.map((p) => p.price), 1000);
+      newMaxPrice = parseFloat(value) || 1000;
       if (newMaxPrice < filters.minPrice) newMinPrice = newMaxPrice;
       setFilters((prev) => ({
         ...prev,
@@ -247,25 +229,22 @@ export default function Home() {
         [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
+    setPage(1);
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOrder(e.target.value);
+    setPage(1);
   };
 
-  // Функции для управления баннерами
   const handlePrevBanner = () => {
     setSlideDirection('right');
-    setCurrentBannerIndex((prev) =>
-      prev === 0 ? banners.length - 1 : prev - 1
-    );
+    setCurrentBannerIndex((prev) => (prev === 0 ? banners.length - 1 : prev - 1));
   };
 
   const handleNextBanner = () => {
     setSlideDirection('left');
-    setCurrentBannerIndex((prev) =>
-      prev === banners.length - 1 ? 0 : prev + 1
-    );
+    setCurrentBannerIndex((prev) => (prev === banners.length - 1 ? 0 : prev + 1));
   };
 
   const handleDotClick = (index: number) => {
@@ -273,16 +252,14 @@ export default function Home() {
     setCurrentBannerIndex(index);
   };
 
-  // Автоматическое перелистывание
   useEffect(() => {
     if (isHovered) return;
     const interval = setInterval(() => {
       handleNextBanner();
-    }, 5000); // Перелистывание каждые 5 секунд
+    }, 5000);
     return () => clearInterval(interval);
   }, [isHovered]);
 
-  // Обработка клика по баннеру
   const handleBannerClick = (link: string) => {
     router.push(link);
   };
@@ -309,17 +286,7 @@ export default function Home() {
             name="category"
             value={filters.category}
             onChange={handleFilterChange}
-            style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              width: '100%',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
-            }}
+            style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
             onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
             onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
           >
@@ -340,28 +307,16 @@ export default function Home() {
               name="subcategory"
               value={filters.subcategory}
               onChange={handleFilterChange}
-              style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                width: '100%',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
               <option value="">Все</option>
-              {categories
-                .find((cat) => cat.key === filters.category)
-                ?.subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.name}>
-                    {subcategory.name}
-                  </option>
-                ))}
+              {categories.find((cat) => cat.key === filters.category)?.subcategories.map((subcategory) => (
+                <option key={subcategory.id} value={subcategory.name}>
+                  {subcategory.name}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -376,17 +331,7 @@ export default function Home() {
               value={filters.minPrice}
               onChange={handleFilterChange}
               min="0"
-              style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px 0 0 20px',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '20px 0 0 20px', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -396,17 +341,7 @@ export default function Home() {
               value={filters.maxPrice}
               onChange={handleFilterChange}
               min={filters.minPrice}
-              style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '0 20px 20px 0',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'border-color 0.3s',
-              }}
+              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '0 20px 20px 0', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -415,14 +350,16 @@ export default function Home() {
             <Slider
               range
               min={0}
-              max={Math.max(...products.map((p) => p.price), 1000)}
+              max={filters.maxPrice}
               value={[filters.minPrice, filters.maxPrice]}
               onChange={(value) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  minPrice: value[0],
-                  maxPrice: value[1],
-                }));
+                if (Array.isArray(value)) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    minPrice: value[0],
+                    maxPrice: value[1],
+                  }));
+                }
               }}
               railStyle={{ backgroundColor: '#e0e0e0', height: '6px' }}
               trackStyle={[{ backgroundColor: '#ff0000', height: '6px' }]}
@@ -442,13 +379,7 @@ export default function Home() {
                 name="inStockOnly"
                 checked={filters.inStockOnly}
                 onChange={handleFilterChange}
-                style={{
-                  position: 'absolute',
-                  opacity: 0,
-                  width: '16px',
-                  height: '16px',
-                  cursor: 'pointer',
-                }}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
               />
               <span
                 style={{
@@ -463,18 +394,7 @@ export default function Home() {
               >
                 {filters.inStockOnly && (
                   <svg
-                    style={{
-                      position: 'absolute',
-                      top: '1px',
-                      left: '1px',
-                      width: '12px',
-                      height: '12px',
-                      fill: 'none',
-                      stroke: '#ffffff',
-                      strokeWidth: '2',
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                    }}
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
                     viewBox="0 0 24 24"
                   >
                     <polyline points="20 6 9 17 4 12" />
@@ -488,16 +408,7 @@ export default function Home() {
       </div>
 
       <div style={{ flexGrow: '1' }}>
-        <div
-          style={{
-            position: 'relative',
-            backgroundColor: '#fffacd',
-            padding: '24px',
-            borderRadius: '8px',
-            marginBottom: '24px',
-            overflow: 'hidden',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}
+        <div style={{ position: 'relative', backgroundColor: '#fffacd', padding: '24px', borderRadius: '8px', marginBottom: '24px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
@@ -516,34 +427,17 @@ export default function Home() {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   paddingBottom: '24px',
-                  transform:
-                    index === currentBannerIndex
-                      ? 'translateX(0)'
-                      : slideDirection === 'left'
-                      ? `translateX(${index > currentBannerIndex ? '100%' : '-100%'})`
-                      : `translateX(${index < currentBannerIndex ? '-100%' : '100%'})`,
+                  transform: index === currentBannerIndex ? 'translateX(0)' : slideDirection === 'left' ? `translateX(${index > currentBannerIndex ? '100%' : '-100%'})` : `translateX(${index < currentBannerIndex ? '-100%' : '100%'})`,
                   opacity: index === currentBannerIndex ? 1 : 0,
                   transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
                   cursor: 'pointer',
                 }}
               >
                 <div style={{ paddingBottom: '16px' }}>
-                  <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000000' }}>
-                    {banner.title}
-                  </h2>
+                  <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000000' }}>{banner.title}</h2>
                   <p style={{ fontSize: '18px', color: '#000000' }}>{banner.description}</p>
                   <button
-                    style={{
-                      marginTop: '16px',
-                      backgroundColor: '#ff6200',
-                      color: 'white',
-                      padding: '12px 24px',
-                      borderRadius: '20px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      minHeight: '48px',
-                      transition: 'background-color 0.3s',
-                    }}
+                    style={{ marginTop: '16px', backgroundColor: '#ff6200', color: 'white', padding: '12px 24px', borderRadius: '20px', border: 'none', cursor: 'pointer', minHeight: '48px', transition: 'background-color 0.3s' }}
                     onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
                     onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ff6200')}
                   >
@@ -554,11 +448,7 @@ export default function Home() {
                   <img
                     src={banner.image}
                     alt={banner.title}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => (e.currentTarget.src = '/placeholder-banner.jpg')}
                   />
                 </div>
@@ -566,60 +456,19 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Стрелки */}
           {isHovered && (
             <>
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  handlePrevBanner();
-                }}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '10px',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  color: '#ff6200',
-                  transition: 'background-color 0.3s',
-                }}
+                onClick={(e) => { e.preventDefault(); handlePrevBanner(); }}
+                style={{ position: 'absolute', top: '50%', left: '10px', transform: 'translateY(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '20px', color: '#ff6200', transition: 'background-color 0.3s' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
                 onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
               >
                 ←
               </button>
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNextBanner();
-                }}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  right: '10px',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  color: '#ff6200',
-                  transition: 'background-color 0.3s',
-                }}
+                onClick={(e) => { e.preventDefault(); handleNextBanner(); }}
+                style={{ position: 'absolute', top: '50%', right: '10px', transform: 'translateY(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '20px', color: '#ff6200', transition: 'background-color 0.3s' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
                 onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
               >
@@ -628,73 +477,27 @@ export default function Home() {
             </>
           )}
 
-          {/* Индикаторы (кружочки) */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '10px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: '8px',
-            }}
-          >
+          <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px' }}>
             {banners.map((_, index) => (
               <button
                 key={index}
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleDotClick(index);
-                }}
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: index === currentBannerIndex ? '#ff6200' : 'rgba(255, 255, 255, 0.5)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.3s',
-                }}
+                onClick={(e) => { e.preventDefault(); handleDotClick(index); }}
+                style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: index === currentBannerIndex ? '#ff6200' : 'rgba(255, 255, 255, 0.5)', border: 'none', cursor: 'pointer', transition: 'background-color 0.3s' }}
               />
             ))}
           </div>
 
-          <div
-            style={{
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              width: '100%',
-              height: '8px',
-              backgroundColor: '#ff0000',
-            }}
-          />
+          <div style={{ position: 'absolute', top: '0', left: '0', width: '100%', height: '8px', backgroundColor: '#ff0000' }} />
         </div>
 
         <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <h3
-            style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: '#ff0000',
-              marginBottom: '16px',
-            }}
-          >
+          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff0000', marginBottom: '16px' }}>
             Главные скидки
           </h3>
           <select
             value={sortOrder}
             onChange={handleSortChange}
-            style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
-            }}
+            style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
             onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
             onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
           >
@@ -704,17 +507,10 @@ export default function Home() {
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-          {filteredProducts.map((product, index) => (
+          {products.map((product, index) => (
             <div
               key={`${product.id}-${index}`}
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '8px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                overflow: 'hidden',
-                transition: 'transform 0.3s',
-                cursor: 'pointer',
-              }}
+              style={{ backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', transition: 'transform 0.3s', cursor: 'pointer' }}
               onClick={() => router.push(`/product/${product.id}`)}
               onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
               onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
@@ -723,76 +519,23 @@ export default function Home() {
                 <img
                   src={`http://localhost:8000${product.image}`}
                   alt={product.name}
-                  style={{
-                    width: '100%',
-                    height: '12rem',
-                    objectFit: 'cover',
-                    borderRadius: '8px 8px 0 0',
-                  }}
-                  onError={(e) =>
-                    console.error(
-                      `Failed to load image for ${product.name}: ${product.image}`
-                    )
-                  }
+                  style={{ width: '100%', height: '12rem', objectFit: 'cover', borderRadius: '8px 8px 0 0' }}
+                  onError={(e) => console.error(`Failed to load image for ${product.name}: ${product.image}`)}
                 />
               ) : (
-                <div
-                  style={{
-                    height: '12rem',
-                    backgroundColor: '#e0e0e0',
-                    borderRadius: '8px 8px 0 0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
+                <div style={{ height: '12rem', backgroundColor: '#e0e0e0', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {product.name}
                 </div>
               )}
               <div style={{ padding: '16px' }}>
-                <h4
-                  style={{
-                    fontSize: '18px',
-                    fontWeight: 'bold',
-                    color: '#333333',
-                    marginBottom: '8px',
-                  }}
-                >
-                  {product.name}
-                </h4>
-                <p
-                  style={{
-                    fontSize: '14px',
-                    color: '#666666',
-                    marginBottom: '8px',
-                  }}
-                >
-                  {product.category.name}
-                  {product.subcategory ? ` / ${product.subcategory.name}` : ''}
+                <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>{product.name}</h4>
+                <p style={{ fontSize: '14px', color: '#666666', marginBottom: '8px' }}>
+                  {product.category.name}{product.subcategory ? ` / ${product.subcategory.name}` : ''}
                 </p>
-                <p
-                  style={{
-                    fontSize: '14px',
-                    color: '#666666',
-                    marginBottom: '16px',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
+                <p style={{ fontSize: '14px', color: '#666666', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {product.description}
                 </p>
-                <p
-                  style={{
-                    width: '100',
-                    textAlign: 'center',
-                    fontSize: '16px',
-                    color: '#333333',
-                    padding: '8px 0',
-                  }}
-                >
+                <p style={{ width: '100', textAlign: 'center', fontSize: '16px', color: '#333333', padding: '8px 0' }}>
                   Цена: {product.price} $
                 </p>
               </div>
@@ -804,7 +547,7 @@ export default function Home() {
             Загрузка...
           </p>
         )}
-        {!hasMore && filteredProducts.length > 0 && (
+        {!hasMore && products.length > 0 && (
           <p style={{ textAlign: 'center', fontSize: '18px', color: '#666666', marginTop: '16px' }}>
             Больше товаров нет.
           </p>
