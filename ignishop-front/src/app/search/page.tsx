@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import axios from 'axios';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Slider from 'rc-slider';
@@ -29,6 +30,8 @@ export interface Product {
   image?: string;
   created_at: string;
   updated_at: string;
+  average_rating?: number;
+  total_reviews?: number;
 }
 
 export default function SearchPage() {
@@ -44,6 +47,8 @@ export default function SearchPage() {
     minPrice: 0,
     maxPrice: 1000,
     inStockOnly: true,
+    fiveStarOnly: false,
+    fourStarAndAbove: false,
   });
 
   const [sortOrder, setSortOrder] = useState('default');
@@ -82,7 +87,7 @@ export default function SearchPage() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [query, filters.category, filters.subcategory, filters.inStockOnly, sortOrder]);
+  }, [query, filters.category, filters.subcategory, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -94,9 +99,8 @@ export default function SearchPage() {
         search: query || undefined,
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
-        minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
-        maxPrice: filters.maxPrice < 1000 ? filters.maxPrice : undefined,
-        inStockOnly: filters.inStockOnly,
+        fiveStarOnly: filters.fiveStarOnly,
+        fourStarAndAbove: filters.fourStarAndAbove,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
@@ -118,11 +122,14 @@ export default function SearchPage() {
       });
 
       setHasMore(pageNum < response.data.last_page);
-      setFilters((prev) => ({
-        ...prev,
-        maxPrice: response.data.max_price || 1000, // Обновляем maxPrice при каждом запросе
-      }));
       if (pageNum === 1) {
+        if (fetchedProducts.length > 0) {
+          const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
+          setFilters((prev) => ({
+            ...prev,
+            maxPrice: maxProductPrice,
+          }));
+        }
         setIsFirstPageLoaded(true);
       }
     } catch (error) {
@@ -163,6 +170,18 @@ export default function SearchPage() {
     };
   }, [hasMore, loadingMore, isFirstPageLoaded]);
 
+  const filteredProducts = products
+    .filter((product) => {
+      const matchesPrice = product.price >= filters.minPrice && product.price <= filters.maxPrice;
+      const matchesStock = !filters.inStockOnly || product.stock > 0;
+      return matchesPrice && matchesStock;
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'asc') return a.price - b.price;
+      if (sortOrder === 'desc') return b.price - a.price;
+      return 0;
+    });
+
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -174,16 +193,12 @@ export default function SearchPage() {
       setFilters((prev) => ({
         ...prev,
         category: value,
-        subcategory: '', // Сбрасываем подкатегорию при смене категории
-        minPrice: 0, // Сбрасываем minPrice при смене категории
-        maxPrice: 1000, // Сбрасываем maxPrice при смене категории
+        subcategory: '',
       }));
     } else if (name === 'subcategory') {
       setFilters((prev) => ({
         ...prev,
         subcategory: value,
-        minPrice: 0, // Сбрасываем minPrice при смене подкатегории
-        maxPrice: 1000, // Сбрасываем maxPrice при смене подкатегории
       }));
     } else if (name === 'minPrice') {
       newMinPrice = parseFloat(value) || 0;
@@ -194,7 +209,7 @@ export default function SearchPage() {
         maxPrice: newMaxPrice,
       }));
     } else if (name === 'maxPrice') {
-      newMaxPrice = parseFloat(value) || 1000;
+      newMaxPrice = parseFloat(value) || Math.max(...products.map((p) => p.price), 1000);
       if (newMaxPrice < filters.minPrice) newMinPrice = newMaxPrice;
       setFilters((prev) => ({
         ...prev,
@@ -207,12 +222,10 @@ export default function SearchPage() {
         [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
-    setPage(1);
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOrder(e.target.value);
-    setPage(1);
   };
 
   return (
@@ -237,7 +250,17 @@ export default function SearchPage() {
             name="category"
             value={filters.category}
             onChange={handleFilterChange}
-            style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
+            style={{
+              padding: '10px',
+              border: '2px solid #ff6200',
+              borderRadius: '20px',
+              width: '100%',
+              backgroundColor: '#fff',
+              fontSize: '14px',
+              color: '#333333',
+              cursor: 'pointer',
+              transition: 'border-color 0.3s',
+            }}
             onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
             onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
           >
@@ -258,16 +281,28 @@ export default function SearchPage() {
               name="subcategory"
               value={filters.subcategory}
               onChange={handleFilterChange}
-              style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', width: '100%', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
+              style={{
+                padding: '10px',
+                border: '2px solid #ff6200',
+                borderRadius: '20px',
+                width: '100%',
+                backgroundColor: '#fff',
+                fontSize: '14px',
+                color: '#333333',
+                cursor: 'pointer',
+                transition: 'border-color 0.3s',
+              }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
               <option value="">Все</option>
-              {categories.find((cat) => cat.key === filters.category)?.subcategories.map((subcategory) => (
-                <option key={subcategory.id} value={subcategory.name}>
-                  {subcategory.name}
-                </option>
-              ))}
+              {categories
+                .find((cat) => cat.key === filters.category)
+                ?.subcategories.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.name}>
+                    {subcategory.name}
+                  </option>
+                ))}
             </select>
           </div>
         )}
@@ -282,7 +317,17 @@ export default function SearchPage() {
               value={filters.minPrice}
               onChange={handleFilterChange}
               min="0"
-              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '20px 0 0 20px', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
+              style={{
+                padding: '8px',
+                border: '2px solid #ff6200',
+                borderRadius: '20px 0 0 20px',
+                width: '100px',
+                fontSize: '14px',
+                color: '#333333',
+                outline: 'none',
+                textAlign: 'center',
+                transition: 'border-color 0.3s',
+              }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -292,7 +337,17 @@ export default function SearchPage() {
               value={filters.maxPrice}
               onChange={handleFilterChange}
               min={filters.minPrice}
-              style={{ padding: '8px', border: '2px solid #ff6200', borderRadius: '0 20px 20px 0', width: '100px', fontSize: '14px', color: '#333333', outline: 'none', textAlign: 'center', transition: 'border-color 0.3s' }}
+              style={{
+                padding: '8px',
+                border: '2px solid #ff6200',
+                borderRadius: '0 20px 20px 0',
+                width: '100px',
+                fontSize: '14px',
+                color: '#333333',
+                outline: 'none',
+                textAlign: 'center',
+                transition: 'border-color 0.3s',
+              }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
@@ -301,16 +356,14 @@ export default function SearchPage() {
             <Slider
               range
               min={0}
-              max={filters.maxPrice}
+              max={Math.max(...products.map((p) => p.price), 1000)}
               value={[filters.minPrice, filters.maxPrice]}
-              onChange={(value: number | number[]) => {
-                if (Array.isArray(value)) {
-                  setFilters((prev) => ({
-                    ...prev,
-                    minPrice: value[0],
-                    maxPrice: value[1],
-                  }));
-                }
+              onChange={(value) => {
+                setFilters((prev) => ({
+                  ...prev,
+                  minPrice: value[0],
+                  maxPrice: value[1],
+                }));
               }}
               railStyle={{ backgroundColor: '#e0e0e0', height: '6px' }}
               trackStyle={[{ backgroundColor: '#ff0000', height: '6px' }]}
@@ -330,7 +383,13 @@ export default function SearchPage() {
                 name="inStockOnly"
                 checked={filters.inStockOnly}
                 onChange={handleFilterChange}
-                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+                style={{
+                  position: 'absolute',
+                  opacity: 0,
+                  width: '16px',
+                  height: '16px',
+                  cursor: 'pointer',
+                }}
               />
               <span
                 style={{
@@ -345,7 +404,18 @@ export default function SearchPage() {
               >
                 {filters.inStockOnly && (
                   <svg
-                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    style={{
+                      position: 'absolute',
+                      top: '1px',
+                      left: '1px',
+                      width: '12px',
+                      height: '12px',
+                      fill: 'none',
+                      stroke: '#ffffff',
+                      strokeWidth: '2',
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                    }}
                     viewBox="0 0 24 24"
                   >
                     <polyline points="20 6 9 17 4 12" />
@@ -354,6 +424,73 @@ export default function SearchPage() {
               </span>
             </div>
             Только в наличии
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="fiveStarOnly"
+                checked={filters.fiveStarOnly}
+                onChange={handleFilterChange}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.fiveStarOnly ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.fiveStarOnly ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.fiveStarOnly && (
+                  <svg
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
+            Только с оценкой 5 звёзд
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="fourStarAndAbove"
+                checked={filters.fourStarAndAbove}
+                onChange={handleFilterChange}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.fourStarAndAbove ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.fourStarAndAbove ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.fourStarAndAbove && (
+                  <svg
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span style={{ fontSize: '16px', color: '#ff6200' }}>★★★★☆</span>
+              <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>и более</span>
+            </div>
           </label>
         </div>
       </div>
@@ -367,7 +504,16 @@ export default function SearchPage() {
             <select
               value={sortOrder}
               onChange={handleSortChange}
-              style={{ padding: '10px', border: '2px solid #ff6200', borderRadius: '20px', backgroundColor: '#fff', fontSize: '14px', color: '#333333', cursor: 'pointer', transition: 'border-color 0.3s' }}
+              style={{
+                padding: '10px',
+                border: '2px solid #ff6200',
+                borderRadius: '20px',
+                backgroundColor: '#fff',
+                fontSize: '14px',
+                color: '#333333',
+                cursor: 'pointer',
+                transition: 'border-color 0.3s',
+              }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
@@ -376,16 +522,23 @@ export default function SearchPage() {
               <option value="desc">По убыванию цены</option>
             </select>
           </div>
-          {products.length === 0 && !loadingMore && (
+          {filteredProducts.length === 0 && !loadingMore && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>
               Товары не найдены.
             </p>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-            {products.map((product, index) => (
+            {filteredProducts.map((product, index) => (
               <div
                 key={`${product.id}-${index}`}
-                style={{ backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', transition: 'transform 0.3s', cursor: 'pointer' }}
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  overflow: 'hidden',
+                  transition: 'transform 0.3s',
+                  cursor: 'pointer',
+                }}
                 onClick={() => router.push(`/product/${product.id}`)}
                 onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
                 onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
@@ -394,25 +547,84 @@ export default function SearchPage() {
                   <img
                     src={`http://localhost:8000${product.image}`}
                     alt={product.name}
-                    style={{ width: '100%', height: '12rem', objectFit: 'cover', borderRadius: '8px 8px 0 0' }}
-                    onError={(e) => console.error(`Failed to load image for ${product.name}: ${product.image}`)}
+                    style={{
+                      width: '100%',
+                      height: '12rem',
+                      objectFit: 'cover',
+                      borderRadius: '8px 8px 0 0',
+                    }}
+                    onError={(e) =>
+                      console.error(
+                        `Failed to load image for ${product.name}: ${product.image}`
+                      )
+                    }
                   />
                 ) : (
-                  <div style={{ height: '12rem', backgroundColor: '#e0e0e0', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div
+                    style={{
+                      height: '12rem',
+                      backgroundColor: '#e0e0e0',
+                      borderRadius: '8px 8px 0 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     {product.name}
                   </div>
                 )}
                 <div style={{ padding: '16px' }}>
-                  <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>{product.name}</h4>
-                  <p style={{ fontSize: '14px', color: '#666666', marginBottom: '8px' }}>
-                    {product.category.name}{product.subcategory ? ` / ${product.subcategory.name}` : ''}
+                  <h4
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#333333',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {product.name}
+                  </h4>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#666666',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {product.category.name}
+                    {product.subcategory ? ` / ${product.subcategory.name}` : ''}
                   </p>
-                  <p style={{ fontSize: '14px', color: '#666666', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#666666',
+                      marginBottom: '16px',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {product.description}
                   </p>
-                  <p style={{ width: '100', textAlign: 'center', fontSize: '16px', color: '#333333', padding: '8px 0' }}>
+                  <p
+                    style={{
+                      width: '100',
+                      textAlign: 'center',
+                      fontSize: '16px',
+                      color: '#333333',
+                      padding: '8px 0',
+                    }}
+                  >
                     Цена: {product.price} $
                   </p>
+                  {product.total_reviews > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #ff6200', marginTop: '8px' }}>
+                      <span style={{ fontSize: '16px', color: '#ff6200' }}>★</span>
+                      <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>{product.average_rating?.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -422,7 +634,7 @@ export default function SearchPage() {
               Загрузка...
             </p>
           )}
-          {!hasMore && products.length > 0 && (
+          {!hasMore && filteredProducts.length > 0 && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#666666', marginTop: '16px' }}>
               Больше товаров нет.
             </p>

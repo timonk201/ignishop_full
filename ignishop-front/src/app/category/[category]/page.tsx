@@ -1,22 +1,37 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import axios from 'axios';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 
-interface Product {
+interface Category {
+  id: number;
+  key: string;
+  name: string;
+  subcategories: Subcategory[];
+}
+
+interface Subcategory {
   id: number;
   name: string;
-  category: { key: string; name: string };
-  subcategory: { name: string } | null;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  category: Category;
+  subcategory: Subcategory | null;
   description: string;
   price: number;
   stock: number;
   image?: string;
   created_at: string;
   updated_at: string;
+  average_rating?: number;
+  total_reviews?: number;
 }
 
 export default function CategoryPage() {
@@ -31,6 +46,8 @@ export default function CategoryPage() {
     minPrice: 0,
     maxPrice: 1000,
     inStockOnly: true,
+    fiveStarOnly: false,
+    fourStarAndAbove: false,
   });
 
   const [sortOrder, setSortOrder] = useState('default');
@@ -53,7 +70,7 @@ export default function CategoryPage() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [category, subcategory, filters.inStockOnly, sortOrder]);
+  }, [category, subcategory, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -64,9 +81,8 @@ export default function CategoryPage() {
       const params = {
         category: category || undefined,
         subcategory: subcategory || undefined,
-        minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
-        maxPrice: filters.maxPrice < 1000 ? filters.maxPrice : undefined,
-        inStockOnly: filters.inStockOnly,
+        fiveStarOnly: filters.fiveStarOnly,
+        fourStarAndAbove: filters.fourStarAndAbove,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
@@ -89,10 +105,13 @@ export default function CategoryPage() {
 
       setHasMore(pageNum < response.data.last_page);
       if (pageNum === 1) {
-        setFilters((prev) => ({
-          ...prev,
-          maxPrice: response.data.max_price || 1000,
-        }));
+        if (fetchedProducts.length > 0) {
+          const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
+          setFilters((prev) => ({
+            ...prev,
+            maxPrice: maxProductPrice,
+          }));
+        }
         setIsFirstPageLoaded(true);
       }
     } catch (error) {
@@ -110,7 +129,6 @@ export default function CategoryPage() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        console.log('Observer triggered:', { isIntersecting: entries[0].isIntersecting, hasMore, loadingMore, isFetching: isFetching.current, isFirstPageLoaded });
         if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
@@ -134,6 +152,18 @@ export default function CategoryPage() {
     };
   }, [hasMore, loadingMore, isFirstPageLoaded]);
 
+  const filteredProducts = products
+    .filter((product) => {
+      const matchesPrice = product.price >= filters.minPrice && product.price <= filters.maxPrice;
+      const matchesStock = !filters.inStockOnly || product.stock > 0;
+      return matchesPrice && matchesStock;
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'asc') return a.price - b.price;
+      if (sortOrder === 'desc') return b.price - a.price;
+      return 0;
+    });
+
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -150,7 +180,7 @@ export default function CategoryPage() {
         maxPrice: newMaxPrice,
       }));
     } else if (name === 'maxPrice') {
-      newMaxPrice = parseFloat(value) || 1000;
+      newMaxPrice = parseFloat(value) || Math.max(...products.map((p) => p.price), 1000);
       if (newMaxPrice < filters.minPrice) newMinPrice = newMaxPrice;
       setFilters((prev) => ({
         ...prev,
@@ -163,12 +193,10 @@ export default function CategoryPage() {
         [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
-    setPage(1);
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOrder(e.target.value);
-    setPage(1);
   };
 
   return (
@@ -235,16 +263,14 @@ export default function CategoryPage() {
             <Slider
               range
               min={0}
-              max={filters.maxPrice}
+              max={Math.max(...products.map((p) => p.price), 1000)}
               value={[filters.minPrice, filters.maxPrice]}
-              onChange={(value: number | number[]) => {
-                if (Array.isArray(value)) {
-                  setFilters((prev) => ({
-                    ...prev,
-                    minPrice: value[0],
-                    maxPrice: value[1],
-                  }));
-                }
+              onChange={(value) => {
+                setFilters((prev) => ({
+                  ...prev,
+                  minPrice: value[0],
+                  maxPrice: value[1],
+                }));
               }}
               railStyle={{ backgroundColor: '#e0e0e0', height: '6px' }}
               trackStyle={[{ backgroundColor: '#ff0000', height: '6px' }]}
@@ -306,6 +332,73 @@ export default function CategoryPage() {
             </div>
             Только в наличии
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="fiveStarOnly"
+                checked={filters.fiveStarOnly}
+                onChange={handleFilterChange}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.fiveStarOnly ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.fiveStarOnly ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.fiveStarOnly && (
+                  <svg
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
+            Только с оценкой 5 звёзд
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+              <input
+                type="checkbox"
+                name="fourStarAndAbove"
+                checked={filters.fourStarAndAbove}
+                onChange={handleFilterChange}
+                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span
+                style={{
+                  display: 'block',
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${filters.fourStarAndAbove ? '#ff6200' : '#666666'}`,
+                  borderRadius: '4px',
+                  backgroundColor: filters.fourStarAndAbove ? '#ff6200' : 'transparent',
+                  transition: 'background-color 0.3s, border-color 0.3s',
+                }}
+              >
+                {filters.fourStarAndAbove && (
+                  <svg
+                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
+                    viewBox="0 0 24 24"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span style={{ fontSize: '16px', color: '#ff6200' }}>★★★★☆</span>
+              <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>и более</span>
+            </div>
+          </label>
         </div>
       </div>
 
@@ -336,13 +429,13 @@ export default function CategoryPage() {
               <option value="desc">По убыванию цены</option>
             </select>
           </div>
-          {products.length === 0 && !loadingMore && (
+          {filteredProducts.length === 0 && !loadingMore && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>
               Товары не найдены.
             </p>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-            {products.map((product, index) => (
+            {filteredProducts.map((product, index) => (
               <div
                 key={`${product.id}-${index}`}
                 style={{
@@ -361,25 +454,70 @@ export default function CategoryPage() {
                   <img
                     src={`http://localhost:8000${product.image}`}
                     alt={product.name}
-                    style={{ width: '100%', height: '12rem', objectFit: 'cover', borderRadius: '8px 8px 0 0' }}
-                    onError={(e) => console.error(`Failed to load image for ${product.name}: ${product.image}`)}
+                    style={{
+                      width: '100%',
+                      height: '12rem',
+                      objectFit: 'cover',
+                      borderRadius: '8px 8px 0 0',
+                    }}
+                    onError={(e) =>
+                      console.error(
+                        `Failed to load image for ${product.name}: ${product.image}`
+                      )
+                    }
                   />
                 ) : (
-                  <div style={{ height: '12rem', backgroundColor: '#e0e0e0', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div
+                    style={{
+                      height: '12rem',
+                      backgroundColor: '#e0e0e0',
+                      borderRadius: '8px 8px 0 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     {product.name}
                   </div>
                 )}
                 <div style={{ padding: '16px' }}>
-                  <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333', marginBottom: '8px' }}>{product.name}</h4>
-                  <p style={{ fontSize: '14px', color: '#666666', marginBottom: '8px' }}>
-                    {product.category.name}{product.subcategory ? ` / ${product.subcategory.name}` : ''}
+                  <h4
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#333333',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {product.name}
+                  </h4>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#666666',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {product.category.name}
+                    {product.subcategory ? ` / ${product.subcategory.name}` : ''}
                   </p>
-                  <p style={{ fontSize: '14px', color: '#666666', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#666666',
+                      marginBottom: '16px',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {product.description}
                   </p>
                   <p
                     style={{
-                      width: '100%',
+                      width: '100',
                       textAlign: 'center',
                       fontSize: '16px',
                       color: '#333333',
@@ -388,6 +526,12 @@ export default function CategoryPage() {
                   >
                     Цена: {product.price} $
                   </p>
+                  {product.total_reviews > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #ff6200', marginTop: '8px' }}>
+                      <span style={{ fontSize: '16px', color: '#ff6200' }}>★</span>
+                      <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>{product.average_rating?.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -397,7 +541,7 @@ export default function CategoryPage() {
               Загрузка...
             </p>
           )}
-          {!hasMore && products.length > 0 && (
+          {!hasMore && filteredProducts.length > 0 && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#666666', marginTop: '16px' }}>
               Больше товаров нет.
             </p>

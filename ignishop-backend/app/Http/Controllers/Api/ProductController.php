@@ -29,7 +29,6 @@ class ProductController extends Controller
                 $query->whereHas('subcategory', function ($q) use ($subcategoryName) {
                     $q->where('name', $subcategoryName);
                 });
-                Log::info('Filtering by subcategory', ['subcategory' => $subcategoryName, 'count' => $query->count()]);
             }
 
             // Поиск по названию, категории, подкатегории и описанию
@@ -47,23 +46,6 @@ class ProductController extends Controller
                 });
             }
 
-            // Фильтрация по цене
-            if ($request->has('minPrice')) {
-                $query->where('price', '>=', $request->input('minPrice'));
-            }
-            if ($request->has('maxPrice')) {
-                $query->where('price', '<=', $request->input('maxPrice'));
-            }
-
-            // Фильтрация по наличию
-            $inStockOnly = filter_var($request->input('inStockOnly', 'false'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($request->has('inStockOnly') && $inStockOnly) {
-                $query->where('stock', '>', 0);
-                Log::info('Applying inStockOnly filter', ['inStockOnly' => $inStockOnly]);
-            } else {
-                Log::info('Not applying inStockOnly filter', ['inStockOnly' => $inStockOnly]);
-            }
-
             // Сортировка по цене
             if ($request->has('sort')) {
                 $sortOrder = $request->input('sort');
@@ -74,37 +56,43 @@ class ProductController extends Controller
                 }
             }
 
+            // Фильтрация только с оценкой 5 звёзд (средняя оценка = 5)
+            $fiveStarOnly = filter_var($request->input('fiveStarOnly', 'false'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($request->has('fiveStarOnly') && $fiveStarOnly) {
+                $query->whereExists(function ($query) {
+                    $query->selectRaw('1')
+                          ->from('reviews')
+                          ->whereColumn('reviews.product_id', 'products.id')
+                          ->groupBy('reviews.product_id')
+                          ->havingRaw('AVG(reviews.rating) = 5');
+                });
+                Log::info('Applying fiveStarOnly filter');
+            }
+
+            // Фильтрация товаров от 4 звёзд и выше
+            $fourStarAndAbove = filter_var($request->input('fourStarAndAbove', 'false'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($request->has('fourStarAndAbove') && $fourStarAndAbove) {
+                $query->whereExists(function ($query) {
+                    $query->selectRaw('1')
+                          ->from('reviews')
+                          ->whereColumn('reviews.product_id', 'products.id')
+                          ->groupBy('reviews.product_id')
+                          ->havingRaw('AVG(reviews.rating) >= 4');
+                });
+                Log::info('Applying fourStarAndAbove filter');
+            }
+
             // Пагинация
             $perPage = $request->input('per_page', 8); // По умолчанию 8 товаров на страницу
             $products = $query->paginate($perPage);
 
-            // Максимальная цена на основе текущих фильтров
-            $maxPriceQuery = Product::query();
-            if ($request->has('category')) {
-                $maxPriceQuery->whereHas('category', function ($q) use ($request) {
-                    $q->where('key', $request->input('category'));
-                });
-            }
-            if ($request->has('subcategory')) {
-                $subcategoryName = $request->input('subcategory');
-                $maxPriceQuery->whereHas('subcategory', function ($q) use ($subcategoryName) {
-                    $q->where('name', $subcategoryName);
-                });
-            }
-            if ($request->has('search')) {
-                $searchTerm = $request->input('search');
-                $maxPriceQuery->where(function ($q) use ($searchTerm) {
-                    $q->where('name', 'like', "%{$searchTerm}%")
-                      ->orWhere('description', 'like', "%{$searchTerm}%")
-                      ->orWhereHas('category', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      })
-                      ->orWhereHas('subcategory', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      });
-                });
-            }
-            $maxPrice = $maxPriceQuery->max('price') ?: 1000;
+            // Добавляем среднюю оценку и общее количество отзывов
+            $products->getCollection()->transform(function ($product) {
+                $reviews = $product->reviews;
+                $product->average_rating = $reviews->avg('rating') ?: 0;
+                $product->total_reviews = $reviews->count();
+                return $product;
+            });
 
             // Добавляем информацию о том, находится ли товар в избранном
             $user = $request->user();
@@ -119,8 +107,8 @@ class ProductController extends Controller
                 'current_page' => $products->currentPage(),
                 'search' => $request->input('search'),
                 'sort' => $request->input('sort'),
-                'inStockOnly' => $inStockOnly,
-                'subcategory' => $request->input('subcategory'),
+                'fiveStarOnly' => $fiveStarOnly,
+                'fourStarAndAbove' => $fourStarAndAbove,
             ]);
 
             return response()->json([
@@ -130,7 +118,6 @@ class ProductController extends Controller
                 'per_page' => $products->perPage(),
                 'current_page' => $products->currentPage(),
                 'last_page' => $products->lastPage(),
-                'max_price' => $maxPrice, // Максимальная цена с учётом фильтров
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching products', [
@@ -171,10 +158,16 @@ class ProductController extends Controller
 
     public function show($id)
     {
-        $product = Product::with(['category', 'subcategory'])->findOrFail($id);
+        $product = Product::with(['category', 'subcategory', 'reviews'])->findOrFail($id);
+        $averageRating = $product->reviews->avg('rating');
+        $totalReviews = $product->reviews->count();
         return response()->json([
             'success' => true,
-            'data' => $product,
+            'data' => [
+                ...$product->toArray(),
+                'average_rating' => $averageRating,
+                'total_reviews' => $totalReviews,
+            ],
         ]);
     }
 

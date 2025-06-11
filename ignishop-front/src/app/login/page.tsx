@@ -24,11 +24,15 @@ export default function LoginPage() {
       });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      await refreshUser();
+      await refreshUser(); // Обновляем состояние пользователя
       router.push('/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Произошла ошибка при входе.');
       console.error('Ошибка входа:', err);
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
   };
 

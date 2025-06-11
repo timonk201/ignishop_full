@@ -27,20 +27,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const { clearCart, syncLocalCart } = useCartStore();
   const { fetchFavorites } = useFavoriteStore();
 
-  // Настройка перехватчика для обработки ошибок 401
+  // Установка токена в заголовки axios
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios.defaults.headers.Authorization = `Bearer ${token}`;
+    }
+
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response?.status === 401) {
-          // Если получили 401, выполняем выход
+        if (error.response?.status === 401 && !error.config._retry) {
+          error.config._retry = true;
           await logout();
         }
         return Promise.reject(error);
       }
     );
 
-    return () => axios.interceptors.response.eject(interceptor);
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+      delete axios.defaults.headers.Authorization;
+    };
   }, []);
 
   const refreshUser = async () => {
@@ -60,7 +68,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       await syncLocalCart(response.data);
     } catch (error) {
       console.error('Error fetching user:', error);
-      await logout();
+      localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -83,6 +92,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      delete axios.defaults.headers.Authorization;
       setUser(null);
       await clearCart(null);
       setLoading(false);

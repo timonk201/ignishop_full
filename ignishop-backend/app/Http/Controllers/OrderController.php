@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Review;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -80,10 +81,14 @@ class OrderController extends Controller
 
     public function index()
     {
-        $orders = Order::where('user_id', auth()->id())->get();
+        $userId = auth()->id();
+        $orders = Order::where('user_id', $userId)->get();
 
-        // Обрабатываем каждый заказ, добавляя информацию о товарах
-        $orders->transform(function ($order) {
+        // Получаем все product_id, на которые пользователь оставил отзывы
+        $allReviewedProductIds = Review::where('user_id', $userId)->pluck('product_id')->toArray();
+
+        // Обрабатываем каждый заказ, добавляя информацию о товарах и reviewed_items
+        $orders->transform(function ($order) use ($allReviewedProductIds) {
             $order->items = collect($order->items)->map(function ($item) {
                 $product = Product::find($item['id']);
                 return [
@@ -94,6 +99,10 @@ class OrderController extends Controller
                     'image' => $product && $product->image ? $product->image : null,
                 ];
             })->toArray();
+
+            // Определяем reviewed_items для текущего пользователя
+            $order->reviewed_items = $allReviewedProductIds;
+
             $order->total = (float) $order->total;
             return $order;
         });

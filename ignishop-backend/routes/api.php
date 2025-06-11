@@ -11,6 +11,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Api\FavoriteController;
+use App\Http\Controllers\Api\ReviewController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -40,13 +41,18 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'index']);
-    Route::post('/favorites', [App\Http\Controllers\Api\FavoriteController::class, 'store']);
-    Route::delete('/favorites/{productId}', [App\Http\Controllers\Api\FavoriteController::class, 'destroy']);
+    Route::get('/favorites', [FavoriteController::class, 'index']);
+    Route::post('/favorites', [FavoriteController::class, 'store']);
+    Route::delete('/favorites/{productId}', [FavoriteController::class, 'destroy']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::delete('cart/clear', [CartController::class, 'clear']); // Явно указываем перед apiResource
+    Route::delete('cart/clear', [CartController::class, 'clear']);
     Route::apiResource('cart', CartController::class);
     Route::apiResource('orders', OrderController::class);
+    Route::post('/orders/{orderId}/products/{productId}/reviews', [ReviewController::class, 'store']);
+    Route::get('/products/{productId}/reviews', [ReviewController::class, 'index']);
+    Route::get('/user/reviews', [ReviewController::class, 'userReviews']);
+    Route::put('/reviews/{reviewId}', [ReviewController::class, 'update']);
+    Route::delete('/reviews/{reviewId}', [ReviewController::class, 'destroy']);
 });

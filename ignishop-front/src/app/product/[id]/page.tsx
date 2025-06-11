@@ -32,6 +32,18 @@ export interface Product {
   is_favorited?: boolean;
 }
 
+interface Review {
+  id: number;
+  user_id: number;
+  product_id: number;
+  order_id: number;
+  rating: number;
+  comment: string | null;
+  image: string | null;
+  created_at: string;
+  user: { name: string };
+}
+
 export default function ProductDetail() {
   const { id } = useParams();
   const router = useRouter();
@@ -40,27 +52,36 @@ export default function ProductDetail() {
   const { user, loading: userLoading } = useUser();
   const { openAuthModal } = useAuthStore();
   const [product, setProduct] = useState<Product | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [localQuantity, setLocalQuantity] = useState(1);
 
-  // Определяем, какую корзину использовать
   const activeCart = user ? cart : localCart;
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/products/${id}`);
-        setProduct(response.data.data);
+        const [productResponse, reviewsResponse] = await Promise.all([
+          axios.get(`http://localhost:8000/api/products/${id}`),
+          axios.get(`http://localhost:8000/api/products/${id}/reviews`),
+        ]);
+        setProduct(productResponse.data.data);
+        setReviews(reviewsResponse.data.data.reviews);
       } catch (err) {
-        setError('Не удалось загрузить информацию о товаре.');
-        console.error('Error fetching product:', err);
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          setError('Сессия истекла. Пожалуйста, войдите снова.');
+          openAuthModal();
+        } else {
+          setError('Не удалось загрузить информацию о товаре.');
+          console.error('Error fetching product or reviews:', err);
+        }
       } finally {
         setLoading(false);
       }
     };
     fetchProduct();
-  }, [id]);
+  }, [id, openAuthModal]);
 
   useEffect(() => {
     if (!userLoading && user) {
@@ -153,6 +174,13 @@ export default function ProductDetail() {
 
   const inCart = isInCart(product.id);
   const inFavorites = isInFavorites(product.id);
+  const averageRating = reviews.length > 0 ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0;
+  const totalReviews = reviews.length;
+  const ratingDistribution = [5, 4, 3, 2, 1].map(rating => ({
+    rating,
+    count: reviews.filter(r => r.rating === rating).length,
+    percentage: totalReviews > 0 ? (reviews.filter(r => r.rating === rating).length / totalReviews) * 100 : 0,
+  }));
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
@@ -188,7 +216,29 @@ export default function ProductDetail() {
         </div>
 
         <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>{product.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333' }}>{product.name}</h1>
+            {totalReviews > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div>
+                  {Array(5)
+                    .fill(0)
+                    .map((_, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          fontSize: '20px',
+                          color: index < Math.round(averageRating) ? '#FF6200' : '#ccc',
+                        }}
+                      >
+                        ★
+                      </span>
+                    ))}
+                </div>
+                <span style={{ fontSize: '16px', color: '#666666' }}>{totalReviews}</span>
+              </div>
+            )}
+          </div>
           <p style={{ fontSize: '16px', color: '#666666', marginBottom: '16px' }}>
             Категория: {product.category.name}
             {product.subcategory && ` / ${product.subcategory.name}`}
@@ -286,36 +336,38 @@ export default function ProductDetail() {
               </div>
             )}
 
-            <button
-              onClick={handleToggleFavorite}
-              style={{
-                backgroundColor: inFavorites ? '#FF0000' : '#FFFFFF',
-                color: inFavorites ? '#FFFFFF' : '#FF0000',
-                padding: '8px 16px',
-                borderRadius: '20px',
-                border: '2px solid #FF0000',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'semibold',
-                transition: 'background-color 0.3s, color 0.3s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-              onMouseOver={(e) => {
-                if (inFavorites) {
-                  e.currentTarget.style.backgroundColor = '#CC0000';
-                } else {
-                  e.currentTarget.style.backgroundColor = '#FFF5F5';
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = inFavorites ? '#FF0000' : '#FFFFFF';
-              }}
-            >
-              {inFavorites ? <FaHeartBroken size={16} /> : <FaHeart size={16} />}
-              {inFavorites ? 'Убрать из избранного' : 'В избранное'}
-            </button>
+            {user && (
+              <button
+                onClick={handleToggleFavorite}
+                style={{
+                  backgroundColor: inFavorites ? '#FF0000' : '#FFFFFF',
+                  color: inFavorites ? '#FFFFFF' : '#FF0000',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  border: '2px solid #FF0000',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'semibold',
+                  transition: 'background-color 0.3s, color 0.3s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+                onMouseOver={(e) => {
+                  if (inFavorites) {
+                    e.currentTarget.style.backgroundColor = '#CC0000';
+                  } else {
+                    e.currentTarget.style.backgroundColor = '#FFF5F5';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = inFavorites ? '#FF0000' : '#FFFFFF';
+                }}
+              >
+                {inFavorites ? <FaHeartBroken size={16} /> : <FaHeart size={16} />}
+                {inFavorites ? 'Убрать из избранного' : 'В избранное'}
+              </button>
+            )}
           </div>
           {inCart && (
             <p
@@ -336,6 +388,81 @@ export default function ProductDetail() {
           )}
         </div>
       </div>
+
+      {reviews.length > 0 && (
+        <div style={{ marginTop: '24px', backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>Отзывы</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>{averageRating.toFixed(1)}</span>
+              <div>
+                {Array(5)
+                  .fill(0)
+                  .map((_, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        fontSize: '20px',
+                        color: index < Math.round(averageRating) ? '#FF6200' : '#ccc',
+                      }}
+                    >
+                      ★
+                    </span>
+                  ))}
+              </div>
+              <span style={{ fontSize: '14px', color: '#666666' }}>Все {totalReviews} отзывов</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              {ratingDistribution.map(({ rating, count, percentage }) => (
+                count > 0 && (
+                  <div key={rating} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '14px', color: '#333333', width: '30px' }}>{rating} ★</span>
+                    <div style={{ flex: 1, margin: '0 8px' }}>
+                      <div
+                        style={{
+                          height: '8px',
+                          backgroundColor: '#e0e0e0',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${percentage}%`,
+                            height: '100%',
+                            backgroundColor: '#FF6200',
+                            borderRadius: '4px',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '14px', color: '#666666', width: '40px', textAlign: 'right' }}>{count}</span>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+          {reviews.map((review) => (
+            <div key={review.id} style={{ marginTop: '16px', padding: '8px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+              <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#333333' }}>{review.user.name}</p>
+              <p style={{ fontSize: '14px', color: '#666666' }}>Оценка: {review.rating} / 5</p>
+              {review.comment && <p style={{ fontSize: '14px', color: '#333333' }}>{review.comment}</p>}
+              {review.image && (
+                <img
+                  src={`http://localhost:8000${review.image}`}
+                  alt="Review image"
+                  style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '8px' }}
+                  onError={(e) => {
+                    console.error(`Failed to load review image: ${review.image}`);
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              <p style={{ fontSize: '12px', color: '#666666' }}>{new Date(review.created_at).toLocaleDateString()}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

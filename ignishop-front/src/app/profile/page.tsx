@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { useFavoriteStore } from '../../store/favoriteStore';
-import { FaHeart, FaTrash } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit } from 'react-icons/fa';
 
 interface User {
   id?: number;
@@ -26,6 +26,18 @@ interface Product {
   image?: string;
 }
 
+interface Review {
+  id: number;
+  user_id: number;
+  product_id: number;
+  order_id: number;
+  rating: number;
+  comment: string | null;
+  image: string | null;
+  created_at: string;
+  product: Product;
+}
+
 export default function ProfilePage() {
   const { refreshUser } = useUser();
   const { favorites, fetchFavorites, removeFromFavorites } = useFavoriteStore();
@@ -36,6 +48,10 @@ export default function ProfilePage() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
   const [favoriteProducts, setFavoriteProducts] = useState<Product[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [editReviewId, setEditReviewId] = useState<number | null>(null);
+  const [editRating, setEditRating] = useState(0);
+  const [editComment, setEditComment] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -82,7 +98,19 @@ export default function ProfilePage() {
       }
     };
 
+    const fetchReviews = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/user/reviews', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setReviews(response.data.data);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+      }
+    };
+
     fetchUser();
+    fetchReviews();
     fetchFavorites();
   }, [router, cacheBuster]);
 
@@ -232,6 +260,81 @@ export default function ProfilePage() {
   const handleImageError = () => {
     setAvatarPreview(null);
     setIsAvatarUploading(false);
+  };
+
+  const handleEditReview = (review: Review) => {
+    setEditReviewId(review.id);
+    setEditRating(review.rating);
+    setEditComment(review.comment || '');
+  };
+
+  const handleUpdateReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editReviewId || !user || editRating === 0) {
+      alert('Пожалуйста, выберите оценку от 1 до 5.');
+      return;
+    }
+
+    const data = {
+      rating: editRating,
+      comment: editComment || undefined,
+    };
+
+    console.log('Sending data:', data);
+
+    try {
+      const response = await axios.put(
+        `http://localhost:8000/api/reviews/${editReviewId}`,
+        data,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // Безопасное обновление состояния
+      setReviews(reviews.map(r =>
+        r.id === editReviewId
+          ? {
+              ...r,
+              ...response.data.data,
+              product: response.data.data.product || r.product
+            }
+          : r
+      ));
+      setEditReviewId(null);
+      setEditRating(0);
+      setEditComment('');
+      alert('Отзыв успешно обновлён!');
+    } catch (error) {
+      console.error('Error updating review:', error);
+      if (error.response) {
+        const errorMsg = error.response.data.message || error.response.data.errors?.rating?.[0] || 'Не удалось обновить отзыв.';
+        alert(`Ошибка: ${errorMsg}`);
+      } else {
+        alert('Не удалось подключиться к серверу.');
+      }
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: number) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этот отзыв?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:8000/api/reviews/${reviewId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReviews(reviews.filter(review => review.id !== reviewId));
+      alert('Отзыв успешно удалён!');
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      alert('Не удалось удалить отзыв. Проверьте консоль для деталей.');
+    }
   };
 
   if (!user && !error) {
@@ -546,6 +649,159 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {reviews.length > 0 && (
+        <div style={{ marginTop: '32px', padding: '32px', backgroundColor: '#F9F9F9', borderRadius: '8px' }}>
+          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#003087', marginBottom: '16px' }}>Мои отзывы</h3>
+          {reviews.map((review) => (
+            <div
+              key={review.id}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '16px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#333333' }}>
+                  {review.product.name}
+                </h4>
+                <div>
+                  {editReviewId === review.id ? (
+                    <button
+                      onClick={() => {
+                        setEditReviewId(null);
+                        setEditRating(0);
+                        setEditComment('');
+                      }}
+                      style={{
+                        backgroundColor: '#666666',
+                        color: '#FFFFFF',
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        marginLeft: '8px',
+                        transition: 'background-color 0.3s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
+                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
+                    >
+                      Отмена
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEditReview(review)}
+                        style={{
+                          backgroundColor: '#FF6200',
+                          color: '#FFFFFF',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          marginLeft: '8px',
+                          transition: 'background-color 0.3s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
+                      >
+                        <FaEdit size={16} /> Редактировать
+                      </button>
+                      <button
+                        onClick={() => handleDeleteReview(review.id)}
+                        style={{
+                          backgroundColor: '#FF0000',
+                          color: '#FFFFFF',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          marginLeft: '8px',
+                          transition: 'background-color 0.3s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#CC0000')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF0000')}
+                      >
+                        <FaTrash size={16} /> Удалить
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {editReviewId === review.id ? (
+                <form onSubmit={handleUpdateReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                  <label style={{ fontSize: '14px', color: '#666666' }}>Оценка (1-5):</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        onClick={() => setEditRating(star)}
+                        style={{
+                          fontSize: '24px',
+                          color: star <= editRating ? '#FF6200' : '#ccc',
+                          cursor: 'pointer',
+                          transition: 'color 0.3s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.color = star <= editRating ? '#e65a00' : '#ccc')}
+                        onMouseOut={(e) => (e.currentTarget.style.color = star <= editRating ? '#FF6200' : '#ccc')}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <label style={{ fontSize: '14px', color: '#666666' }}>Комментарий:</label>
+                  <textarea
+                    value={editComment}
+                    onChange={(e) => setEditComment(e.target.value)}
+                    style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', minHeight: '100px' }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={editRating === 0}
+                    style={{
+                      backgroundColor: '#FF6200',
+                      color: '#FFFFFF',
+                      padding: '12px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      cursor: editRating === 0 ? 'not-allowed' : 'pointer',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = editRating === 0 ? '#FF6200' : '#e65a00')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
+                  >
+                    Сохранить
+                  </button>
+                </form>
+              ) : (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontSize: '14px', color: '#666666', marginBottom: '8px' }}>
+                    Оценка: {Array.from({ length: 5 }, (_, i) => (
+                      <span key={i} style={{ color: i < review.rating ? '#FF6200' : '#ccc' }}>★</span>
+                    ))}
+                  </div>
+                  {review.comment && <p style={{ fontSize: '14px', color: '#333333' }}>{review.comment}</p>}
+                  {review.image && (
+                    <img
+                      src={`http://localhost:8000${review.image}`}
+                      alt="Review image"
+                      style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '8px' }}
+                      onError={(e) => {
+                        console.error(`Failed to load review image: ${review.image}`);
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <p style={{ fontSize: '12px', color: '#666666' }}>Дата: {new Date(review.created_at).toLocaleDateString()}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {showLogoutConfirm && (
         <div
