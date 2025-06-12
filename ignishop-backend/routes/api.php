@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Ресурсы
 Route::apiResource('products', ProductController::class);
+Route::get('/products/{productId}/reviews', [ReviewController::class, 'index']);
 
 // Аутентификация
 Route::post('/register', [AuthController::class, 'register']);
@@ -51,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cart', CartController::class);
     Route::apiResource('orders', OrderController::class);
     Route::post('/orders/{orderId}/products/{productId}/reviews', [ReviewController::class, 'store']);
-    Route::get('/products/{productId}/reviews', [ReviewController::class, 'index']);
+
     Route::get('/user/reviews', [ReviewController::class, 'userReviews']);
     Route::put('/reviews/{reviewId}', [ReviewController::class, 'update']);
     Route::delete('/reviews/{reviewId}', [ReviewController::class, 'destroy']);
