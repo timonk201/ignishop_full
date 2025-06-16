@@ -14,7 +14,8 @@ class OrderSeeder extends Seeder
     public function run()
     {
         $users = User::all();
-        $products = Product::all();
+        // Получаем только подтвержденные товары
+        $products = Product::where('is_approved', true)->get();
 
         foreach ($users as $user) {
             // Генерация от 1 до 3 заказов на пользователя
@@ -30,14 +31,48 @@ class OrderSeeder extends Seeder
                     $quantity = rand(1, min(5, $product->stock)); // Количество до 5 или остатка на складе
                     $orderItems[] = [
                         'id' => $product->id,
+                        'name' => $product->name,
+                        'price' => $product->price,
                         'quantity' => $quantity,
+                        'seller_id' => $product->seller_id,
                     ];
                     $total += $product->price * $quantity;
                 }
 
                 // Определяем delivery_method и address
                 $deliveryMethod = ['pickup', 'delivery'][rand(0, 1)];
-                $address = $deliveryMethod === 'pickup' ? null : fake()->address();
+                if ($deliveryMethod === 'pickup') {
+                    $address = null;
+                } else {
+                    $countries = ['Россия', 'Беларусь', 'Казахстан', 'Украина', 'Армения', 'Грузия', 'Азербайджан', 'Узбекистан', 'Киргизия', 'Таджикистан', 'Молдова', 'Латвия', 'Литва', 'Эстония'];
+                    $country = $countries[array_rand($countries)];
+                    $cities = [
+                        'Россия' => ['Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Казань'],
+                        'Беларусь' => ['Минск', 'Гомель', 'Могилёв', 'Витебск', 'Гродно'],
+                        'Казахстан' => ['Алматы', 'Нур-Султан', 'Шымкент', 'Караганда', 'Актобе'],
+                        'Украина' => ['Киев', 'Харьков', 'Одесса', 'Днепр', 'Львов'],
+                        'Армения' => ['Ереван', 'Гюмри', 'Ванадзор'],
+                        'Грузия' => ['Тбилиси', 'Батуми', 'Кутаиси'],
+                        'Азербайджан' => ['Баку', 'Гянджа', 'Сумгаит'],
+                        'Узбекистан' => ['Ташкент', 'Самарканд', 'Бухара'],
+                        'Киргизия' => ['Бишкек', 'Ош', 'Джалал-Абад'],
+                        'Таджикистан' => ['Душанбе', 'Худжанд', 'Бохтар'],
+                        'Молдова' => ['Кишинёв', 'Бельцы', 'Тирасполь'],
+                        'Латвия' => ['Рига', 'Даугавпилс', 'Лиепая'],
+                        'Литва' => ['Вильнюс', 'Каунас', 'Клайпеда'],
+                        'Эстония' => ['Таллин', 'Тарту', 'Нарва'],
+                    ];
+                    $city = $cities[$country][array_rand($cities[$country])];
+                    $streets = ['Ленина', 'Советская', 'Пушкина', 'Мира', 'Гагарина', 'Кирова', 'Жукова', 'Садовая', 'Школьная', 'Центральная'];
+                    $street = $streets[array_rand($streets)];
+                    $house = rand(1, 200);
+                    $apartment = rand(0, 1) ? (string)rand(1, 150) : '';
+                    $postalCode = str_pad((string)rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+                    $address = $country . ', ' . $city . ', ' . $street . ', д. ' . $house . ($apartment ? ', кв. ' . $apartment : '') . ', ' . $postalCode;
+                }
+
+                // Определяем статус заказа
+                $status = ['pending', 'processing', 'completed', 'cancelled'][rand(0, 3)];
 
                 // Создание заказа в транзакции
                 DB::beginTransaction();
@@ -48,6 +83,7 @@ class OrderSeeder extends Seeder
                         'total' => $total,
                         'delivery_method' => $deliveryMethod,
                         'address' => $address,
+                        'status' => $status,
                         'created_at' => Carbon::now()->subDays(rand(0, 30)),
                         'updated_at' => Carbon::now(),
                     ]);

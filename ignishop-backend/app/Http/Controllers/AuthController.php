@@ -5,18 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        \Log::info('Register request data:', $request->all());
+        Log::info('Register request data:', $request->all());
 
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6',
             'is_admin' => 'boolean',
+            'is_seller' => 'boolean',
         ]);
 
         $user = User::create([
@@ -24,6 +26,7 @@ class AuthController extends Controller
             'email' => $validatedData['email'],
             'password' => Hash::make($validatedData['password']),
             'is_admin' => $validatedData['is_admin'] ?? false,
+            'is_seller' => $validatedData['is_seller'] ?? false,
         ]);
 
         return response()->json(['message' => 'Пользователь успешно зарегистрирован', 'user' => $user], 201);
@@ -51,7 +54,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            \Log::error('User not authenticated for /api/user request');
+            Log::error('User not authenticated for /api/user request');
             return response()->json(['message' => 'Не аутентифицирован'], 401);
         }
 

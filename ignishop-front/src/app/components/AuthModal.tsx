@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useUser } from '../context/UserContext';
 import axios from 'axios';
-import { FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaStore, FaCheck, FaArrowLeft } from 'react-icons/fa';
 
 export default function AuthModal() {
   const { isAuthModalOpen, closeAuthModal } = useAuthStore();
@@ -15,6 +15,7 @@ export default function AuthModal() {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
@@ -53,11 +54,13 @@ export default function AuthModal() {
         email,
         password,
         is_admin: false,
+        is_seller: isSeller,
       });
       setStep('email');
       setEmail('');
       setPassword('');
       setName('');
+      setIsSeller(false);
       alert('Регистрация успешна! Теперь войдите.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка при регистрации');
@@ -74,6 +77,7 @@ export default function AuthModal() {
     setEmail('');
     setPassword('');
     setName('');
+    setIsSeller(false);
     setError('');
   };
 
@@ -197,29 +201,9 @@ export default function AuthModal() {
 
         {step === 'password' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-              <button
-                type="button"
-                onClick={() => setStep('email')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#666666',
-                  marginRight: '16px',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#FF6200')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#666666')}
-              >
-                <FaArrowLeft size={20} />
-              </button>
-              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333', flex: 1 }}>
-                Введите пароль
-              </h2>
-            </div>
-            <p style={{ fontSize: '14px', color: '#666666', marginBottom: '16px' }}>
-              Для аккаунта {email}
-            </p>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>
+              Введите пароль
+            </h2>
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ position: 'relative' }}>
                 <input
@@ -372,6 +356,75 @@ export default function AuthModal() {
                   {showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
                 </button>
               </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="checkbox"
+                    id="isSeller"
+                    checked={isSeller}
+                    onChange={(e) => setIsSeller(e.target.checked)}
+                    style={{ 
+                      width: '20px', 
+                      height: '20px', 
+                      cursor: 'pointer',
+                      opacity: 0,
+                      position: 'absolute',
+                      zIndex: 2,
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      border: '2px solid #FF6200',
+                      borderRadius: '4px',
+                      backgroundColor: isSeller ? '#FF6200' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                    }}
+                  >
+                    {isSeller && (
+                      <FaCheck
+                        size={14}
+                        style={{
+                          color: '#FFFFFF',
+                          opacity: isSeller ? 1 : 0,
+                          transform: isSeller ? 'scale(1)' : 'scale(0)',
+                          transition: 'all 0.2s ease',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+                <label htmlFor="isSeller" style={{ fontSize: '14px', color: '#666666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FaStore style={{ color: '#FF6200' }} />
+                  Зарегистрироваться как продавец
+                </label>
+              </div>
+
+              {isSeller && (
+                <div style={{ 
+                  backgroundColor: '#FFF8F5', 
+                  padding: '12px', 
+                  borderRadius: '4px', 
+                  border: '1px solid #FFE0D0',
+                  fontSize: '14px',
+                  color: '#666666',
+                  animation: 'fadeIn 0.3s ease',
+                }}>
+                  <p style={{ marginBottom: '8px' }}>Регистрация как продавец позволит вам:</p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    <li style={{ marginBottom: '4px' }}>• Добавлять свои товары на площадку</li>
+                    <li style={{ marginBottom: '4px' }}>• Управлять своим каталогом</li>
+                    <li>• Получать заказы от покупателей</li>
+                  </ul>
+                </div>
+              )}
+
               {error && <p style={{ color: '#FF0000', fontSize: '14px' }}>{error}</p>}
               <button
                 type="submit"
@@ -413,6 +466,19 @@ export default function AuthModal() {
           </>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

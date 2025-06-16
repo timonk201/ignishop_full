@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
+import ProductCard from '../../components/ProductCard';
 
 interface Category {
   id: number;
@@ -408,132 +409,42 @@ export default function CategoryPage() {
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>
               Товары категории: {category}{subcategory ? ` / ${subcategory}` : ''}
             </h2>
-            <select
-              value={sortOrder}
-              onChange={handleSortChange}
-              style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
-            >
-              <option value="default">Сортировать</option>
-              <option value="asc">По возрастанию цены</option>
-              <option value="desc">По убыванию цены</option>
-            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '16px' }}>
+              <select
+                value={sortOrder}
+                onChange={handleSortChange}
+                style={{
+                  padding: '10px',
+                  border: '2px solid #ff6200',
+                  borderRadius: '20px',
+                  backgroundColor: '#fff',
+                  fontSize: '14px',
+                  color: '#333333',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.3s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+              >
+                <option value="default">Сортировать</option>
+                <option value="asc">По возрастанию цены</option>
+                <option value="desc">По убыванию цены</option>
+              </select>
+            </div>
           </div>
           {filteredProducts.length === 0 && !loadingMore && (
             <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>
               Товары не найдены.
             </p>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: '32px',
+            justifyContent: 'center',
+          }}>
             {filteredProducts.map((product, index) => (
-              <div
-                key={`${product.id}-${index}`}
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  overflow: 'hidden',
-                  transition: 'transform 0.3s',
-                  cursor: 'pointer',
-                }}
-                onClick={() => router.push(`/product/${product.id}`)}
-                onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-              >
-                {product.image ? (
-                  <img
-                    src={`http://localhost:8000${product.image}`}
-                    alt={product.name}
-                    style={{
-                      width: '100%',
-                      height: '12rem',
-                      objectFit: 'cover',
-                      borderRadius: '8px 8px 0 0',
-                    }}
-                    onError={(e) =>
-                      console.error(
-                        `Failed to load image for ${product.name}: ${product.image}`
-                      )
-                    }
-                  />
-                ) : (
-                  <div
-                    style={{
-                      height: '12rem',
-                      backgroundColor: '#e0e0e0',
-                      borderRadius: '8px 8px 0 0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {product.name}
-                  </div>
-                )}
-                <div style={{ padding: '16px' }}>
-                  <h4
-                    style={{
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: '#333333',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    {product.name}
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: '14px',
-                      color: '#666666',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    {product.category.name}
-                    {product.subcategory ? ` / ${product.subcategory.name}` : ''}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: '14px',
-                      color: '#666666',
-                      marginBottom: '16px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {product.description}
-                  </p>
-                  <p
-                    style={{
-                      width: '100',
-                      textAlign: 'center',
-                      fontSize: '16px',
-                      color: '#333333',
-                      padding: '8px 0',
-                    }}
-                  >
-                    Цена: {product.price} $
-                  </p>
-                  {product.total_reviews > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #ff6200', marginTop: '8px' }}>
-                      <span style={{ fontSize: '16px', color: '#ff6200' }}>★</span>
-                      <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>{product.average_rating?.toFixed(1)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ProductCard key={`${product.id}-${index}`} product={product} />
             ))}
           </div>
           {loadingMore && (

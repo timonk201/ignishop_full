@@ -126,13 +126,31 @@ export default function OrdersPage() {
               <p style={{ fontSize: '16px', color: '#333333' }}>
                 Способ получения: {order.delivery_method === 'pickup' ? 'Самовывоз' : 'Доставка'}
               </p>
-              {order.address && <p style={{ fontSize: '16px', color: '#333333' }}>Адрес: {order.address}</p>}
+              {order.delivery_method === 'delivery' && order.address && (
+                <div style={{
+                  background: '#FFF8F3',
+                  border: '2px solid #FF6200',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  margin: '10px 0',
+                  fontSize: '16px',
+                  color: '#333333',
+                  fontWeight: 'bold',
+                }}>
+                  <span style={{fontSize: '20px', color: '#FF6200'}}>📦</span> <span>Адрес доставки:</span>
+                  <ul style={{margin: '8px 0 0 32px', padding: 0, listStyle: 'disc'}}>
+                    {order.address.split(',').map((part, idx) => (
+                      <li key={idx} style={{fontWeight: 'normal', color: '#333', fontSize: '15px'}}>{part.trim()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div style={{ marginTop: '8px' }}>
                 {order.items.map((item) => (
                   <div key={item.id} style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '8px' }}>
                     {item.image && (
                       <img
-                        src={`http://localhost:8000${item.image}`}
+                        src={item.image.startsWith('http') ? item.image : `http://localhost:8000/storage/${item.image}`}
                         alt={item.name}
                         style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }}
                         onError={(e) => {

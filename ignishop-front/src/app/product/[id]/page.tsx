@@ -200,7 +200,11 @@ export default function ProductDetail() {
         <div style={{ flex: '0 0 400px' }}>
           {product.image ? (
             <img
-              src={`http://localhost:8000${product.image}`}
+              src={product.image.startsWith('http')
+                ? product.image
+                : (product.image.startsWith('/storage/')
+                  ? `http://localhost:8000${product.image}`
+                  : `http://localhost:8000/storage/${product.image}`)}
               alt={product.name}
               style={{ width: '100%', height: '400px', objectFit: 'cover', borderRadius: '8px' }}
               onError={(e) => {

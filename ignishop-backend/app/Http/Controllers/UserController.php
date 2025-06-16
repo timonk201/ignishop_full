@@ -6,53 +6,56 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
     public function update(Request $request)
     {
-        $user = $request->user();
+        $user = Auth::user();
 
-        if (!$user) {
-            return response()->json(['message' => 'Не аутентифицирован'], 401);
-        }
-
-        $validatedData = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => 'sometimes|nullable|string|min:6',
-            'avatar' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
-        try {
-            if (isset($validatedData['name'])) {
-                $user->name = $validatedData['name'];
-            }
-
-            if (isset($validatedData['email'])) {
-                $user->email = $validatedData['email'];
-            }
-
-            if (isset($validatedData['password'])) {
-                $user->password = Hash::make($validatedData['password']);
-            }
-
-            if ($request->hasFile('avatar')) {
-                // Удаляем старый аватар, если он есть
-                if ($user->avatar) {
-                    Storage::disk('public')->delete($user->avatar);
-                }
-
-                $path = $request->file('avatar')->store('avatars', 'public');
-                $user->avatar = $path;
-            }
-
-            $user->save();
-
-            return response()->json($user, 200);
-        } catch (\Exception $e) {
-            \Log::error('Error updating user: ' . $e->getMessage());
-            return response()->json(['message' => 'Ошибка при обновлении профиля'], 500);
+        if ($request->hasFile('avatar')) {
+            $avatarPath = $request->file('avatar')->store('avatars', 'public');
+            $user->avatar = $avatarPath;
         }
+
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email
+        ]);
+
+        // Convert avatar path to full URL if it exists
+        if ($user->avatar) {
+            $user->avatar = asset('storage/' . ltrim($user->avatar, '/'));
+        }
+
+        return response()->json($user);
+    }
+
+    public function becomeSeller()
+    {
+        $user = Auth::user();
+
+        if ($user->is_seller) {
+            return response()->json(['message' => 'User is already a seller'], 400);
+        }
+
+        $user->becomeSeller();
+        return response()->json(['message' => 'Successfully became a seller', 'user' => $user]);
+    }
+
+    public function getSellerStatus()
+    {
+        $user = Auth::user();
+        return response()->json([
+            'is_seller' => $user->is_seller,
+            'products_count' => $user->products()->count()
+        ]);
     }
 }

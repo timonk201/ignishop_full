@@ -18,7 +18,7 @@ class AdminController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password) || $user->role !== 'admin') {
+        if (!$user || !Hash::check($request->password, $user->password) || !$user->is_admin) {
             return response()->json(['message' => 'Неверные учетные данные или не администратор'], 401);
         }
 

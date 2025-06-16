@@ -25,14 +25,14 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('anna2023'),
             ],
             [
-                'name' => 'Ivan Ivanov',
-                'email' => 'ivan.ivanov@example.com',
-                'password' => Hash::make('ivan456'),
+                'name' => 'Vasiliy Egorov',
+                'email' => 'vasiliy.egorov@example.com',
+                'password' => Hash::make('vasiliy456'),
             ],
             [
-                'name' => 'Maria Smirnova',
-                'email' => 'maria.smirnova@example.com',
-                'password' => Hash::make('maria789'),
+                'name' => 'Svetlana Mironova',
+                'email' => 'svetlana.mironova@example.com',
+                'password' => Hash::make('svetlana789'),
             ],
             [
                 'name' => 'Alexey Kuznetsov',

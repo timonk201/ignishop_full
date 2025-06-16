@@ -34,8 +34,32 @@ export default function CartPage() {
   const { user, loading: userLoading } = useUser();
   const { openAuthModal } = useAuthStore();
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
-  const [address, setAddress] = useState('');
+  const [country, setCountry] = useState('');
+  const [city, setCity] = useState('');
+  const [street, setStreet] = useState('');
+  const [house, setHouse] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [postalCode, setPostalCode] = useState('');
   const router = useRouter();
+
+  const DELIVERY_COST = 30;
+
+  const countryOptions = [
+    'Россия',
+    'Беларусь',
+    'Казахстан',
+    'Украина',
+    'Армения',
+    'Грузия',
+    'Азербайджан',
+    'Узбекистан',
+    'Киргизия',
+    'Таджикистан',
+    'Молдова',
+    'Латвия',
+    'Литва',
+    'Эстония',
+  ];
 
   // Определяем, какую корзину использовать
   const activeCart = user ? cart : localCart;
@@ -57,6 +81,7 @@ export default function CartPage() {
   if (!user) return null;
 
   const totalPrice = activeCart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+  const finalPrice = deliveryMethod === 'delivery' ? totalPrice + DELIVERY_COST : totalPrice;
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,9 +104,11 @@ export default function CartPage() {
         image: item.image,
         quantity: item.quantity,
       })),
-      total: totalPrice,
+      total: finalPrice,
       delivery_method: deliveryMethod,
-      address: deliveryMethod === 'delivery' ? address : null,
+      address: deliveryMethod === 'delivery'
+        ? `${country}, ${city}, ${street}, д. ${house}${apartment ? ', кв. ' + apartment : ''}, ${postalCode}`
+        : null,
     };
 
     try {
@@ -127,7 +154,7 @@ export default function CartPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   {item.image && (
                     <img
-                      src={`http://localhost:8000${item.image}`}
+                      src={item.image.startsWith('http') ? item.image : `http://localhost:8000/storage/${item.image}`}
                       alt={item.name}
                       style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }}
                       onError={(e) => {
@@ -190,8 +217,11 @@ export default function CartPage() {
 
           <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
             <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>
-              Общая сумма: <span style={{ color: '#FF6200' }}>{totalPrice.toFixed(2)} $</span>
+              Общая сумма: <span style={{ color: '#FF6200' }}>{finalPrice.toFixed(2)} $</span>
             </p>
+            {deliveryMethod === 'delivery' && (
+              <p style={{ color: '#666', fontSize: '16px', marginTop: '8px' }}>Включая доставку: <span style={{ color: '#FF6200' }}>{DELIVERY_COST.toFixed(2)} $</span></p>
+            )}
           </div>
 
           <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', maxWidth: '400px', margin: '0 auto' }}>
@@ -217,24 +247,89 @@ export default function CartPage() {
                 </select>
               </div>
               {deliveryMethod === 'delivery' && (
-                <div>
-                  <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Адрес доставки:</label>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Введите адрес доставки"
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ccc',
-                      borderRadius: '4px',
-                      outline: 'none',
-                      color: '#333333',
-                      fontSize: '14px',
-                      resize: 'vertical',
-                    }}
-                    required
-                  />
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '12px',
+                    marginTop: '8px',
+                    background: '#FFF8F3',
+                    border: '2px solid #FF6200',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    maxWidth: '100%',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Страна</label>
+                    <select
+                      value={country}
+                      onChange={e => setCountry(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                      required
+                    >
+                      <option value="">Выберите страну</option>
+                      {countryOptions.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Город</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={e => setCity(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                      required
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Улица</label>
+                    <input
+                      type="text"
+                      value={street}
+                      onChange={e => setStreet(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                      required
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Дом</label>
+                    <input
+                      type="text"
+                      value={house}
+                      onChange={e => setHouse(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                      required
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Квартира (необязательно)</label>
+                    <input
+                      type="text"
+                      value={apartment}
+                      onChange={e => setApartment(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Почтовый индекс</label>
+                    <input
+                      type="text"
+                      value={postalCode}
+                      onChange={e => setPostalCode(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
+                      required
+                    />
+                  </div>
+                  <style>{`
+                    @media (max-width: 700px) {
+                      .address-grid {
+                        grid-template-columns: 1fr !important;
+                      }
+                    }
+                  `}</style>
                 </div>
               )}
               <button

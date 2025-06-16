@@ -13,7 +13,8 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Product::query()->with(['category', 'subcategory']);
+            $query = Product::query()->with(['category', 'subcategory', 'seller'])
+                ->where('is_approved', true);
 
             // Фильтрация по категории
             if ($request->has('category')) {
@@ -156,19 +157,16 @@ class ProductController extends Controller
         ], 201);
     }
 
-    public function show($id)
+    public function show(Product $product)
     {
-        $product = Product::with(['category', 'subcategory', 'reviews'])->findOrFail($id);
-        $averageRating = $product->reviews->avg('rating');
-        $totalReviews = $product->reviews->count();
-        return response()->json([
-            'success' => true,
-            'data' => [
-                ...$product->toArray(),
-                'average_rating' => $averageRating,
-                'total_reviews' => $totalReviews,
-            ],
-        ]);
+        if (!$product->is_approved) {
+            return response()->json(['message' => 'Product not found'], 404);
+        }
+        // Исправляем путь к картинке
+        if ($product->image && !str_starts_with($product->image, 'http') && !str_starts_with($product->image, '/storage/')) {
+            $product->image = '/storage/' . ltrim($product->image, '/');
+        }
+        return response()->json(['data' => $product->load(['category', 'subcategory', 'seller'])]);
     }
 
     public function update(Request $request, $id)

@@ -318,7 +318,7 @@ export default function Header() {
                 <Link href="/profile">
                   {localUser.avatar ? (
                     <img
-                      src={localUser.avatar}
+                      src={localUser.avatar.startsWith('http') ? localUser.avatar : `http://localhost:8000/storage/${localUser.avatar}`}
                       alt="User Avatar"
                       style={{
                         width: '40px',

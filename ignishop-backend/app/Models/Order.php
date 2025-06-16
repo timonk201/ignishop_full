@@ -13,6 +13,7 @@ class Order extends Model
         'total',
         'delivery_method',
         'address',
+        'status',
     ];
 
     protected $casts = [

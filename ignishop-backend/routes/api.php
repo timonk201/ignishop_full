@@ -12,6 +12,8 @@ use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\SellerProductController;
+use App\Http\Controllers\Api\AdminProductController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -28,18 +30,26 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
-});
+    Route::post('/user/update', [UserController::class, 'update']);
+    Route::post('/user/become-seller', [UserController::class, 'becomeSeller']);
+    Route::get('/user/seller-status', [UserController::class, 'getSellerStatus']);
 
-// Маршруты для админки
-Route::post('/admin/login', [AdminController::class, 'login']);
+    // Маршруты для продавцов
+    Route::middleware('seller')->group(function () {
+        Route::apiResource('seller/products', SellerProductController::class);
+    });
+
+    // Маршруты для админов
+    Route::middleware('admin')->group(function () {
+        Route::get('/admin/products/pending', [AdminProductController::class, 'index']);
+        Route::post('/admin/products/{product}/approve', [AdminProductController::class, 'approve']);
+        Route::post('/admin/products/{product}/reject', [AdminProductController::class, 'reject']);
+    });
+});
 
 // Маршруты для категорий и подкатегорий
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/subcategories', [SubcategoryController::class, 'index']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/user/update', [UserController::class, 'update']);
-});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/favorites', [FavoriteController::class, 'index']);

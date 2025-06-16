@@ -169,6 +169,17 @@ export default function EditProduct() {
             style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', width: '100%' }}
           />
         </div>
+        {product.image && (
+          <img
+            src={product.image.startsWith('http')
+              ? product.image
+              : (product.image.startsWith('/storage/')
+                ? `http://localhost:8000${product.image}`
+                : `http://localhost:8000/storage/${product.image}`)}
+            alt={product.name}
+            style={{ width: '100%', height: '200px', objectFit: 'cover', marginBottom: '16px' }}
+          />
+        )}
         <button
           type="submit"
           style={{

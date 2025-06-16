@@ -13,7 +13,20 @@ class Product extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'category_id', 'subcategory_id', 'description', 'price', 'stock', 'image',
+        'name',
+        'description',
+        'price',
+        'stock',
+        'image',
+        'category_id',
+        'subcategory_id',
+        'seller_id',
+        'is_approved'
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+        'is_approved' => 'boolean'
     ];
 
     public function category(): BelongsTo
@@ -35,5 +48,20 @@ class Product extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function seller()
+    {
+        return $this->belongsTo(User::class, 'seller_id');
+    }
+
+    public function approve()
+    {
+        $this->update(['is_approved' => true]);
+    }
+
+    public function reject()
+    {
+        $this->update(['is_approved' => false]);
     }
 }

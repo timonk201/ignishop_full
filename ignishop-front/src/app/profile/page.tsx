@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { useFavoriteStore } from '../../store/favoriteStore';
-import { FaHeart, FaTrash, FaEdit } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit, FaStore } from 'react-icons/fa';
 
 interface User {
   id?: number;
@@ -61,6 +61,9 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [cacheBuster, setCacheBuster] = useState(Date.now());
+  const [isSeller, setIsSeller] = useState(false);
+  const [sellerProductsCount, setSellerProductsCount] = useState(0);
+  const [sellerLoading, setSellerLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -109,9 +112,24 @@ export default function ProfilePage() {
       }
     };
 
+    const fetchSellerStatus = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/api/user/seller-status', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setIsSeller(res.data.is_seller);
+        setSellerProductsCount(res.data.products_count);
+      } catch (e) {
+        setIsSeller(false);
+      } finally {
+        setSellerLoading(false);
+      }
+    };
+
     fetchUser();
     fetchReviews();
     fetchFavorites();
+    fetchSellerStatus();
   }, [router, cacheBuster]);
 
   useEffect(() => {
@@ -151,6 +169,8 @@ export default function ProfilePage() {
     const token = localStorage.getItem('token');
     const formDataToSend = new FormData();
     formDataToSend.append('avatar', avatarFile);
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('email', formData.email);
 
     try {
       const response = await axios.post('http://localhost:8000/api/user/update', formDataToSend, {
@@ -160,16 +180,12 @@ export default function ProfilePage() {
         },
       });
       setUser(response.data);
+      localStorage.setItem('user', JSON.stringify(response.data));
       setEditAvatarMode(false);
       setIsAvatarUploading(false);
       setError('');
-      const newCacheBuster = Date.now();
-      setCacheBuster(newCacheBuster);
-      if (response.data.avatar) {
-        setAvatarPreview(`${response.data.avatar}?t=${newCacheBuster}`);
-      } else {
-        setAvatarPreview(null);
-      }
+      setCacheBuster(Date.now());
+      setAvatarPreview(null);
       refreshUser();
     } catch (err) {
       if (err.response) {
@@ -180,7 +196,7 @@ export default function ProfilePage() {
       console.error('Ошибка обновления аватара:', err);
       setEditAvatarMode(false);
       setIsAvatarUploading(false);
-      setAvatarPreview(user?.avatar ? `${user.avatar}?t=${cacheBuster}` : null);
+      setAvatarPreview(user?.avatar ? user.avatar : null);
     }
   };
 
@@ -201,6 +217,7 @@ export default function ProfilePage() {
         },
       });
       setUser(response.data);
+      localStorage.setItem('user', JSON.stringify(response.data));
       setEditMode(false);
       setError('');
       const newCacheBuster = Date.now();
@@ -337,6 +354,19 @@ export default function ProfilePage() {
     }
   };
 
+  const handleBecomeSeller = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.post('http://localhost:8000/api/user/become-seller', {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setIsSeller(true);
+      alert('Теперь вы продавец!');
+    } catch (e) {
+      alert('Ошибка при попытке стать продавцом');
+    }
+  };
+
   if (!user && !error) {
     return <div style={{ textAlign: 'center', fontSize: '18px', color: '#333333', padding: '40px' }}>Загрузка...</div>;
   }
@@ -419,21 +449,64 @@ export default function ProfilePage() {
                 onChange={handleAvatarChange}
                 style={{ marginBottom: '12px' }}
               />
-              {avatarPreview && (
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <img
-                    src={avatarPreview}
-                    alt="Avatar Preview"
-                    style={{
-                      width: '150px',
-                      height: '150px',
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      marginTop: '12px',
-                      display: 'block',
-                    }}
-                    onError={handleImageError}
-                  />
+              {avatarPreview && avatarPreview.startsWith('blob:') && !isAvatarUploading ? (
+                <img
+                  src={avatarPreview}
+                  alt="User Avatar"
+                  style={{
+                    width: '150px',
+                    height: '150px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                    border: '3px solid #ff6200',
+                    transition: 'border-color 0.3s',
+                    display: 'block',
+                    margin: '0 auto',
+                  }}
+                  onError={handleImageError}
+                  onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                  onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                />
+              ) : user?.avatar && !isAvatarUploading ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000/storage/${user.avatar}`}
+                  alt="User Avatar"
+                  style={{
+                    width: '150px',
+                    height: '150px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                    border: '3px solid #ff6200',
+                    transition: 'border-color 0.3s',
+                    display: 'block',
+                    margin: '0 auto',
+                  }}
+                  onError={handleImageError}
+                  onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                  onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '150px',
+                    height: '150px',
+                    borderRadius: '50%',
+                    backgroundColor: '#E0E0E0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto',
+                    cursor: 'pointer',
+                    border: '3px solid #ff6200',
+                    transition: 'border-color 0.3s',
+                    position: 'relative',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                  onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                >
+                  <span style={{ fontSize: '48px', color: '#666666' }}>👤</span>
                   {isAvatarUploading && (
                     <div
                       style={{
@@ -505,9 +578,28 @@ export default function ProfilePage() {
                 id="avatar-upload"
               />
               <label htmlFor="avatar-upload" style={{ display: 'block', textAlign: 'center' }}>
-                {avatarPreview && !isAvatarUploading ? (
+                {avatarPreview && avatarPreview.startsWith('blob:') && !isAvatarUploading ? (
                   <img
                     src={avatarPreview}
+                    alt="User Avatar"
+                    style={{
+                      width: '150px',
+                      height: '150px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      cursor: 'pointer',
+                      border: '3px solid #ff6200',
+                      transition: 'border-color 0.3s',
+                      display: 'block',
+                      margin: '0 auto',
+                    }}
+                    onError={handleImageError}
+                    onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+                    onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+                  />
+                ) : user?.avatar && !isAvatarUploading ? (
+                  <img
+                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000/storage/${user.avatar}`}
                     alt="User Avatar"
                     style={{
                       width: '150px',
@@ -627,6 +719,53 @@ export default function ProfilePage() {
                 <FaHeart size={16} /> Избранное
               </button>
             </div>
+            {!sellerLoading && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px', gap: '16px' }}>
+                {!isSeller ? (
+                  <button
+                    onClick={handleBecomeSeller}
+                    style={{
+                      backgroundColor: '#003087',
+                      color: '#fff',
+                      padding: '12px 24px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 'semibold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.backgroundColor = '#002766')}
+                    onMouseOut={e => (e.currentTarget.style.backgroundColor = '#003087')}
+                  >
+                    <FaStore size={18} /> Стать продавцом
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push('/seller/products')}
+                    style={{
+                      backgroundColor: '#FF6200',
+                      color: '#fff',
+                      padding: '12px 24px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 'semibold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.backgroundColor = '#e65a00')}
+                    onMouseOut={e => (e.currentTarget.style.backgroundColor = '#FF6200')}
+                  >
+                    <FaStore size={18} /> Панель продавца ({sellerProductsCount})
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
               <button
                 onClick={() => setShowLogoutConfirm(true)}

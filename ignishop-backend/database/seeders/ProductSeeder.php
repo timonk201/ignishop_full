@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Product;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 
@@ -12,6 +13,14 @@ class ProductSeeder extends Seeder
 {
     public function run(): void
     {
+        $sellerIds = User::where('is_seller', true)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($sellerIds)) {
+            return; // Если нет продавцов, выходим
+        }
+
         $products = [
             // Категория: Электроника (существующие товары)
             [
@@ -460,11 +469,11 @@ class ProductSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'name' => 'Шампунь L’Oreal',
+                'name' => 'Шампунь L\'Oreal',
                 'category' => 'beauty',
                 'subcategory' => 'Средства для волос',
-                'description' => 'Шампунь для восстановления волос.',
-                'price' => 14.99,
+                'description' => 'Питательный шампунь для всех типов волос.',
+                'price' => 12.99,
                 'stock' => 40,
                 'image' => null,
                 'created_at' => Carbon::now(),
@@ -863,13 +872,12 @@ class ProductSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
         ];
-
+        $i = 0;
         foreach ($products as $product) {
             $category = Category::where('key', $product['category'])->first();
             $subcategory = Subcategory::where('name', $product['subcategory'])
                 ->where('category_id', $category->id)
                 ->first();
-
             Product::create([
                 'name' => $product['name'],
                 'category_id' => $category->id,
@@ -878,9 +886,12 @@ class ProductSeeder extends Seeder
                 'price' => $product['price'],
                 'stock' => $product['stock'],
                 'image' => $product['image'],
+                'seller_id' => $sellerIds[$i % count($sellerIds)],
+                'is_approved' => true, // Все товары подтверждены
                 'created_at' => $product['created_at'],
                 'updated_at' => $product['updated_at'],
             ]);
+            $i++;
         }
     }
 }
