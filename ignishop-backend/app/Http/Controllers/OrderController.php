@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\UserTask;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 
 class OrderController extends Controller
 {
@@ -25,6 +27,7 @@ class OrderController extends Controller
             'total' => 'required|numeric',
             'delivery_method' => 'required|string',
             'address' => 'nullable|string',
+            'used_bonus_points' => 'nullable|integer|min:0',
         ]);
 
         try {
@@ -42,6 +45,16 @@ class OrderController extends Controller
                 }
             }
 
+            $user = auth()->user();
+            // Списание бонусов
+            $usedBonus = Arr::get($validatedData, 'used_bonus_points', 0);
+            $maxBonus = min((int)($validatedData['total'] * 0.9), $user->bonus_points);
+            if ($usedBonus > $maxBonus) {
+                throw new \Exception('Слишком много бонусов для списания.');
+            }
+            $user->bonus_points -= $usedBonus;
+            $user->save();
+
             // Создаём заказ
             $order = Order::create([
                 'user_id' => auth()->id(),
@@ -49,6 +62,7 @@ class OrderController extends Controller
                 'total' => floatval($validatedData['total']),
                 'delivery_method' => $validatedData['delivery_method'],
                 'address' => $validatedData['address'],
+                'used_bonus_points' => $usedBonus,
             ]);
 
             // Уменьшаем stock для каждого товара
@@ -56,6 +70,20 @@ class OrderController extends Controller
                 $product = Product::find($item['id']);
                 $product->stock -= $item['quantity'];
                 $product->save();
+            }
+
+            // Проверяем задания пользователя и начисляем бонусы
+            foreach ($validatedData['items'] as $item) {
+                $task = UserTask::where('user_id', $user->id)
+                    ->where('product_id', $item['id'])
+                    ->where('completed', false)
+                    ->first();
+                if ($task && $item['quantity'] >= $task->quantity) {
+                    $user->bonus_points += $task->reward;
+                    $user->save();
+                    $task->completed = true;
+                    $task->save();
+                }
             }
 
             // Подтверждаем транзакцию
@@ -104,6 +132,7 @@ class OrderController extends Controller
             $order->reviewed_items = $allReviewedProductIds;
 
             $order->total = (float) $order->total;
+            $order->used_bonus_points = (int) ($order->used_bonus_points ?? 0);
             return $order;
         });
 

@@ -14,11 +14,13 @@ class Order extends Model
         'delivery_method',
         'address',
         'status',
+        'used_bonus_points',
     ];
 
     protected $casts = [
         'items' => 'array',
         'reviewed_items' => 'array',
+        'used_bonus_points' => 'integer',
     ];
 
     public function reviews(): HasMany

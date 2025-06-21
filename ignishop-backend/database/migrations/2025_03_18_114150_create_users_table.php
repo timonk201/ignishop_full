@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->boolean('is_admin')->default(false);
             $table->boolean('is_seller')->default(false);
             $table->string('avatar')->nullable();
+            $table->integer('bonus_points')->default(0);
             $table->rememberToken();
             $table->timestamps();
         });

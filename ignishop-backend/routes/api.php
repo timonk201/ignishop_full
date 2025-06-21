@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SellerProductController;
 use App\Http\Controllers\Api\AdminProductController;
+use App\Http\Controllers\UserTaskController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -33,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/update', [UserController::class, 'update']);
     Route::post('/user/become-seller', [UserController::class, 'becomeSeller']);
     Route::get('/user/seller-status', [UserController::class, 'getSellerStatus']);
+    Route::get('/user/bonus', [UserController::class, 'getBonusPoints']);
+    Route::post('/user/bonus/add', [UserController::class, 'addBonusPoints']);
 
     // Маршруты для продавцов
     Route::middleware('seller')->group(function () {
@@ -45,6 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/products/{product}/approve', [AdminProductController::class, 'approve']);
         Route::post('/admin/products/{product}/reject', [AdminProductController::class, 'reject']);
     });
+
+    Route::get('/user/tasks', [UserTaskController::class, 'index']);
+    Route::post('/user/tasks/generate', [UserTaskController::class, 'generate']);
 });
 
 // Маршруты для категорий и подкатегорий
@@ -66,4 +72,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/reviews', [ReviewController::class, 'userReviews']);
     Route::put('/reviews/{reviewId}', [ReviewController::class, 'update']);
     Route::delete('/reviews/{reviewId}', [ReviewController::class, 'destroy']);
+});
+
+Route::middleware('auth:api')->group(function () {
+    Route::get('/user-tasks', [UserTaskController::class, 'index']);
+    Route::post('/user-tasks/generate', [UserTaskController::class, 'generate']);
 });

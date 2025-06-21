@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { useAuthStore } from '../../store/authStore';
+import { FaMoneyBillWave } from 'react-icons/fa';
 
 interface Product {
   id: number;
@@ -22,6 +23,7 @@ interface Order {
   address?: string;
   created_at: string;
   reviewed_items?: number[];
+  used_bonus_points?: number;
 }
 
 export default function OrdersPage() {
@@ -44,6 +46,7 @@ export default function OrdersPage() {
         total: parseFloat(String(order.total)),
         created_at: order.created_at,
         reviewed_items: order.reviewed_items || [],
+        used_bonus_points: order.used_bonus_points || 0,
       }));
       setOrders(fetchedOrders);
     } catch (error) {
@@ -114,18 +117,24 @@ export default function OrdersPage() {
             <div
               key={order.id}
               style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '8px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                padding: '16px',
+                background: '#fff',
+                borderRadius: 16,
+                boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
+                padding: 24,
+                marginBottom: 12,
+                position: 'relative',
+                borderLeft: '6px solid #ff6200',
               }}
             >
-              <p style={{ fontSize: '16px', color: '#666666' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
+                <span style={{ fontSize: 22, color: '#ff6200' }}>🧾</span>
+                <span style={{ fontSize: 18, color: '#333', fontWeight: 600 }}>
                 Заказ #{order.id} от {new Date(order.created_at).toLocaleDateString()}
-              </p>
-              <p style={{ fontSize: '16px', color: '#333333' }}>
+                </span>
+              </div>
+              <div style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>
                 Способ получения: {order.delivery_method === 'pickup' ? 'Самовывоз' : 'Доставка'}
-              </p>
+              </div>
               {order.delivery_method === 'delivery' && order.address && (
                 <div style={{
                   background: '#FFF8F3',
@@ -152,7 +161,7 @@ export default function OrdersPage() {
                       <img
                         src={item.image.startsWith('http') ? item.image : `http://localhost:8000/storage/${item.image}`}
                         alt={item.name}
-                        style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }}
+                        style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #ff6200' }}
                         onError={(e) => {
                           console.error(`Failed to load image for ${item.name}: ${item.image}`);
                           (e.target as HTMLImageElement).style.display = 'none';
@@ -169,7 +178,7 @@ export default function OrdersPage() {
                           onClick={() => router.push('/profile')}
                           disabled={false}
                           style={{
-                            backgroundColor: '#CCCCCC',
+                            background: '#CCCCCC',
                             color: '#666666',
                             padding: '8px 16px',
                             borderRadius: '20px',
@@ -179,27 +188,27 @@ export default function OrdersPage() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '4px',
+                            fontWeight: 600,
+                            fontSize: 15,
                           }}
                         >
                           Отзыв оставлен
-                          <span style={{ fontSize: '12px' }}>посмотреть</span>
                         </button>
                       ) : (
                         <button
                           onClick={() => setShowReviewModal({ orderId: order.id, productId: item.id })}
                           style={{
-                            backgroundColor: '#FF6200',
-                            color: '#FFFFFF',
+                            background: 'linear-gradient(90deg, #ff6200 0%, #ff9d2f 100%)',
+                            color: '#fff',
                             padding: '8px 16px',
                             borderRadius: '20px',
                             border: 'none',
                             cursor: 'pointer',
                             marginTop: '8px',
-                            transition: 'background-color 0.3s',
+                            fontWeight: 700,
+                            fontSize: 15,
+                            transition: 'background 0.2s',
                           }}
-                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
-                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
                         >
                           Оставить отзыв
                         </button>
@@ -208,9 +217,30 @@ export default function OrdersPage() {
                   </div>
                 ))}
               </div>
-              <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#FF6200', marginTop: '8px' }}>
-                Итого: {order.total.toFixed(2)} $
-              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 18,
+                marginTop: 18,
+                background: '#fff8f0',
+                borderRadius: 12,
+                padding: '18px 28px',
+                boxShadow: '0 2px 8px rgba(255,98,0,0.06)',
+                fontSize: 20,
+                fontWeight: 600,
+                color: '#333',
+              }}>
+                <FaMoneyBillWave size={32} color="#ff6200" />
+                <span>Сумма заказа: {order.total.toFixed(2)}$</span>
+                {order.used_bonus_points && order.used_bonus_points > 0 && (
+                  <span style={{ color: '#ff6200', fontWeight: 700, fontSize: 18 }}>
+                    -{order.used_bonus_points}$ бонусами
+                  </span>
+                )}
+                <span style={{ color: '#003087', fontWeight: 700, fontSize: 22, marginLeft: 'auto' }}>
+                  Фактически оплачено: {(order.total - (order.used_bonus_points || 0)).toFixed(2)}$
+                </span>
+              </div>
             </div>
           ))}
         </div>
@@ -223,71 +253,75 @@ export default function OrdersPage() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          background: 'rgba(0,0,0,0.45)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 1000,
         }}>
           <div style={{
-            backgroundColor: '#FFFFFF',
-            padding: '24px',
-            borderRadius: '8px',
-            width: '400px',
-            maxHeight: '80vh',
+            background: 'linear-gradient(120deg, #fff8f0 0%, #fff 100%)',
+            padding: '36px 32px 28px 32px',
+            borderRadius: '22px',
+            width: '420px',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
             overflowY: 'auto',
+            boxShadow: '0 8px 32px rgba(255,98,0,0.18)',
+            border: '2px solid #ff6200',
+            position: 'relative',
           }}>
-            <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>Оставить отзыв</h3>
-            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <label style={{ fontSize: '14px', color: '#666666' }}>Оценка (1-5):</label>
-              <div style={{ display: 'flex', gap: '4px' }}>
+            <h3 style={{ fontSize: '26px', fontWeight: 700, color: '#ff6200', marginBottom: '18px', textAlign: 'center', letterSpacing: 0.5 }}>Оставить отзыв</h3>
+            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <label style={{ fontSize: '16px', color: '#333', fontWeight: 500 }}>Оценка:</label>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: 6 }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <span
                     key={star}
                     onClick={() => setRating(star)}
                     style={{
-                      fontSize: '24px',
-                      color: star <= rating ? '#FF6200' : '#ccc',
+                      fontSize: '32px',
+                      color: star <= rating ? '#ff6200' : '#eee',
                       cursor: 'pointer',
-                      transition: 'color 0.3s',
+                      transition: 'color 0.2s',
+                      filter: star <= rating ? 'drop-shadow(0 2px 6px #ff620044)' : 'none',
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = star <= rating ? '#e65a00' : '#ccc')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = star <= rating ? '#FF6200' : '#ccc')}
                   >
                     ★
                   </span>
                 ))}
               </div>
-              <label style={{ fontSize: '14px', color: '#666666' }}>Комментарий:</label>
+              <label style={{ fontSize: '16px', color: '#333', fontWeight: 500 }}>Комментарий:</label>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Напишите ваш отзыв..."
-                style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', minHeight: '100px' }}
+                style={{ padding: '14px', border: '1.5px solid #ff6200', borderRadius: '10px', minHeight: '100px', fontSize: 16, resize: 'vertical', background: '#fff8f0', color: '#333' }}
               />
-              <label style={{ fontSize: '14px', color: '#666666' }}>Фото (опционально):</label>
+              <label style={{ fontSize: '16px', color: '#333', fontWeight: 500 }}>Фото (опционально):</label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setImage(e.target.files ? e.target.files[0] : null)}
-                style={{ padding: '8px' }}
+                style={{ padding: '8px', borderRadius: 8, border: '1.5px solid #ff6200', background: '#fff8f0', color: '#333' }}
               />
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: 8 }}>
                 <button
                   type="submit"
                   disabled={rating === 0}
                   style={{
-                    backgroundColor: '#FF6200',
-                    color: '#FFFFFF',
-                    padding: '12px',
-                    borderRadius: '20px',
+                    background: rating === 0 ? '#ffb98a' : 'linear-gradient(90deg, #ff6200 0%, #ff9d2f 100%)',
+                    color: '#fff',
+                    padding: '14px',
+                    borderRadius: 10,
                     border: 'none',
                     cursor: rating === 0 ? 'not-allowed' : 'pointer',
                     flexGrow: 1,
-                    transition: 'background-color 0.3s',
+                    fontWeight: 700,
+                    fontSize: 17,
+                    boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
+                    transition: 'background 0.2s',
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = rating === 0 ? '#FF6200' : '#e65a00')}
-                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
                 >
                   Отправить
                 </button>
@@ -295,17 +329,18 @@ export default function OrdersPage() {
                   type="button"
                   onClick={() => setShowReviewModal(null)}
                   style={{
-                    backgroundColor: '#666666',
-                    color: '#FFFFFF',
-                    padding: '12px',
-                    borderRadius: '20px',
+                    background: '#666',
+                    color: '#fff',
+                    padding: '14px',
+                    borderRadius: 10,
                     border: 'none',
                     cursor: 'pointer',
                     flexGrow: 1,
-                    transition: 'background-color 0.3s',
+                    fontWeight: 700,
+                    fontSize: 17,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    transition: 'background 0.2s',
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
-                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
                 >
                   Отмена
                 </button>

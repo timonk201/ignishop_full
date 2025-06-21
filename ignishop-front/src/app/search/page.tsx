@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import axios from 'axios';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import ProductCard from '../components/ProductCard';
@@ -38,7 +37,6 @@ export interface Product {
 export default function SearchPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
 
@@ -71,10 +69,6 @@ export default function SearchPage() {
         setCategories(response.data.data);
       } catch (error) {
         console.error('Error fetching categories:', error);
-        if (!errorShown) {
-          alert('Не удалось загрузить категории.');
-          setErrorShown(true);
-        }
       }
     };
     fetchCategories();
@@ -84,11 +78,10 @@ export default function SearchPage() {
     setProducts([]);
     setPage(1);
     setHasMore(true);
-    setErrorShown(false);
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [query, filters.category, filters.subcategory, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder]);
+  }, [query, filters.category, filters.subcategory, filters.inStockOnly, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -96,49 +89,44 @@ export default function SearchPage() {
 
     try {
       setLoadingMore(true);
-      const params = {
-        search: query || undefined,
+      const apiParams = {
+        search: query,
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        inStockOnly: filters.inStockOnly,
         fiveStarOnly: filters.fiveStarOnly,
         fourStarAndAbove: filters.fourStarAndAbove,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
         page: pageNum,
         per_page: perPage,
       };
-      console.log('Request params:', params); // Отладка параметров
-      const response = await axios.get('http://localhost:8000/api/products', { params });
-      console.log('Fetched products response:', response.data);
-      const fetchedProducts = response.data.data.map((product: Product) => ({
-        ...product,
-        price: parseFloat(product.price as string),
-      }));
-      setTotalProducts(response.data.total || 0);
 
-      setProducts((prev) => {
+      const response = await axios.get('http://localhost:8000/api/products', { params: apiParams });
+      
+      const fetchedProducts = response.data.data.map((product: any) => ({
+        ...product,
+        price: parseFloat(product.price),
+      }));
+
+      setProducts(prev => {
         const newProducts = reset ? fetchedProducts : [...prev, ...fetchedProducts];
-        return newProducts.filter((item, index, self) =>
-          index === self.findIndex((t) => t.id === item.id)
+        return newProducts.filter((item: Product, index: number, self: Product[]) =>
+          index === self.findIndex((t: Product) => t.id === item.id)
         );
       });
 
+      setTotalProducts(response.data.total || 0);
       setHasMore(pageNum < response.data.last_page);
-      if (pageNum === 1) {
-        if (fetchedProducts.length > 0) {
+      
+      if (reset && fetchedProducts.length > 0) {
           const maxProductPrice = Math.max(...fetchedProducts.map((p: Product) => p.price), 1000);
-          setFilters((prev) => ({
-            ...prev,
-            maxPrice: maxProductPrice,
-          }));
+        setFilters(prev => ({ ...prev, maxPrice: maxProductPrice }));
         }
         setIsFirstPageLoaded(true);
-      }
+
     } catch (error) {
       console.error('Error fetching products:', error);
-      if (!errorShown) {
         alert('Не удалось загрузить товары.');
-        setErrorShown(true);
-      }
     } finally {
       setLoadingMore(false);
       isFetching.current = false;
@@ -149,9 +137,9 @@ export default function SearchPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
-          setPage((prevPage) => {
+          setPage(prevPage => {
             const nextPage = prevPage + 1;
-            fetchProducts(nextPage);
+            fetchProducts(nextPage, false);
             return nextPage;
           });
         }
@@ -169,13 +157,33 @@ export default function SearchPage() {
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, loadingMore, isFirstPageLoaded]);
+  }, [hasMore, loadingMore, isFirstPageLoaded, fetchProducts]);
 
+  const handleFilterChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+
+    if (name === 'category') {
+        setFilters(prev => ({...prev, category: value, subcategory: ''}));
+    } else if (type === 'checkbox' && 'checked' in e.target) {
+      setFilters(prev => ({
+        ...prev,
+        [name]: (e.target as HTMLInputElement).checked,
+      }));
+    } else {
+      setFilters(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSortOrder(e.target.value);
+  };
+  
   const filteredProducts = products
-    .filter((product) => {
-      const matchesPrice = product.price >= filters.minPrice && product.price <= filters.maxPrice;
-      const matchesStock = !filters.inStockOnly || product.stock > 0;
-      return matchesPrice && matchesStock;
+    .filter(product => {
+        const matchesPrice = product.price >= filters.minPrice && product.price <= filters.maxPrice;
+        return matchesPrice;
     })
     .sort((a, b) => {
       if (sortOrder === 'asc') return a.price - b.price;
@@ -183,66 +191,24 @@ export default function SearchPage() {
       return 0;
     });
 
-  const handleFilterChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type, checked } = e.target;
-    let newMinPrice = filters.minPrice;
-    let newMaxPrice = filters.maxPrice;
-
-    if (name === 'category') {
-      setFilters((prev) => ({
-        ...prev,
-        category: value,
-        subcategory: '',
-      }));
-    } else if (name === 'subcategory') {
-      setFilters((prev) => ({
-        ...prev,
-        subcategory: value,
-      }));
-    } else if (name === 'minPrice') {
-      newMinPrice = parseFloat(value) || 0;
-      if (newMinPrice > filters.maxPrice) newMaxPrice = newMinPrice;
-      setFilters((prev) => ({
-        ...prev,
-        minPrice: newMinPrice,
-        maxPrice: newMaxPrice,
-      }));
-    } else if (name === 'maxPrice') {
-      newMaxPrice = parseFloat(value) || Math.max(...products.map((p) => p.price), 1000);
-      if (newMaxPrice < filters.minPrice) newMinPrice = newMaxPrice;
-      setFilters((prev) => ({
-        ...prev,
-        minPrice: newMinPrice,
-        maxPrice: newMaxPrice,
-      }));
-    } else {
-      setFilters((prev) => ({
-        ...prev,
-        [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
-      }));
-    }
-  };
-
-  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSortOrder(e.target.value);
-  };
+  const selectedCategory = categories.find((cat) => cat.key === filters.category);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px', display: 'flex', gap: '16px' }}>
-      <div
+      <aside
         style={{
           width: '250px',
           padding: '16px',
           backgroundColor: '#ffffff',
           borderRadius: '8px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          alignSelf: 'flex-start',
         }}
       >
         <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#333333', marginBottom: '16px', textAlign: 'center' }}>
           Фильтры
         </h3>
+        
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
             Категория:
@@ -252,28 +218,19 @@ export default function SearchPage() {
             value={filters.category}
             onChange={handleFilterChange}
             style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              width: '100%',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
+              padding: '10px 16px', border: '2px solid #ff6200', borderRadius: '25px', width: '100%',
+              backgroundColor: '#fff', fontSize: '15px', color: '#333', cursor: 'pointer',
+              outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
             }}
-            onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-            onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
           >
             <option value="">Все</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.key}>
-                {category.name}
-              </option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.key}>{cat.name}</option>
             ))}
           </select>
         </div>
-        {filters.category && (
+
+        {selectedCategory && selectedCategory.subcategories.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
               Подкатегория:
@@ -283,30 +240,19 @@ export default function SearchPage() {
               value={filters.subcategory}
               onChange={handleFilterChange}
               style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                width: '100%',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
+                padding: '10px 16px', border: '2px solid #ff6200', borderRadius: '25px', width: '100%',
+                backgroundColor: '#fff', fontSize: '15px', color: '#333', cursor: 'pointer',
+                outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             >
               <option value="">Все</option>
-              {categories
-                .find((cat) => cat.key === filters.category)
-                ?.subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.name}>
-                    {subcategory.name}
-                  </option>
+              {selectedCategory.subcategories.map((sub) => (
+                  <option key={sub.id} value={sub.name}>{sub.name}</option>
                 ))}
             </select>
           </div>
         )}
+
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333333' }}>
             Цена:
@@ -319,18 +265,10 @@ export default function SearchPage() {
               onChange={handleFilterChange}
               min="0"
               style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px 0 0 20px',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'border-color 0.3s',
+                padding: '10px', border: '2px solid #ff6200', borderRadius: '25px', width: '100px',
+                fontSize: '15px', color: '#333', outline: 'none', textAlign: 'center',
+                backgroundColor: '#fff', transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
             <input
               type="number"
@@ -339,215 +277,93 @@ export default function SearchPage() {
               onChange={handleFilterChange}
               min={filters.minPrice}
               style={{
-                padding: '8px',
-                border: '2px solid #ff6200',
-                borderRadius: '0 20px 20px 0',
-                width: '100px',
-                fontSize: '14px',
-                color: '#333333',
-                outline: 'none',
-                textAlign: 'center',
-                transition: 'border-color 0.3s',
+                padding: '10px', border: '2px solid #ff6200', borderRadius: '25px', width: '100px',
+                fontSize: '15px', color: '#333', outline: 'none', textAlign: 'center',
+                backgroundColor: '#fff', transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
             />
           </div>
           <div style={{ marginTop: '8px' }}>
             <Slider
               range
               min={0}
-              max={Math.max(...products.map((p) => p.price), 1000)}
+              max={Math.max(...products.map(p => p.price), 1000)}
               value={[filters.minPrice, filters.maxPrice]}
               onChange={(value) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  minPrice: value[0],
-                  maxPrice: value[1],
-                }));
+                const arr = value as number[];
+                setFilters(prev => ({ ...prev, minPrice: arr[0], maxPrice: arr[1] }));
               }}
-              railStyle={{ backgroundColor: '#e0e0e0', height: '6px' }}
-              trackStyle={[{ backgroundColor: '#ff0000', height: '6px' }]}
+              railStyle={{ backgroundColor: '#e0e0e0', height: 8 }}
+              trackStyle={[{ backgroundColor: '#ff6200', height: 8 }]}
               handleStyle={[
-                { borderColor: '#ff0000', backgroundColor: '#fff', borderWidth: '2px', width: '16px', height: '16px', marginTop: '-5px' },
-                { borderColor: '#ff0000', backgroundColor: '#fff', borderWidth: '2px', width: '16px', height: '16px', marginTop: '-5px' },
+                { borderColor: '#ff6200', backgroundColor: '#ff6200', borderWidth: 3, width: 20, height: 20, marginTop: -6 },
+                { borderColor: '#ff6200', backgroundColor: '#ff6200', borderWidth: 3, width: 20, height: 20, marginTop: -6 },
               ]}
               style={{ width: '100%' }}
             />
           </div>
         </div>
-        <div>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {['inStockOnly', 'fiveStarOnly', 'fourStarAndAbove'].map(filterName => (
+                <label key={filterName}>
               <input
                 type="checkbox"
-                name="inStockOnly"
-                checked={filters.inStockOnly}
+                        name={filterName}
+                        checked={filters[filterName as keyof typeof filters] as boolean}
                 onChange={handleFilterChange}
-                style={{
-                  position: 'absolute',
-                  opacity: 0,
-                  width: '16px',
-                  height: '16px',
-                  cursor: 'pointer',
-                }}
+                        style={{ display: 'none' }}
               />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.inStockOnly ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.inStockOnly ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.inStockOnly && (
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      top: '1px',
-                      left: '1px',
-                      width: '12px',
-                      height: '12px',
-                      fill: 'none',
-                      stroke: '#ffffff',
-                      strokeWidth: '2',
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                    }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-            </div>
-            Только в наличии
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
-              <input
-                type="checkbox"
-                name="fiveStarOnly"
-                checked={filters.fiveStarOnly}
-                onChange={handleFilterChange}
-                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.fiveStarOnly ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.fiveStarOnly ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.fiveStarOnly && (
-                  <svg
-                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-            </div>
-            Только с оценкой 5 звёзд
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
-              <input
-                type="checkbox"
-                name="fourStarAndAbove"
-                checked={filters.fourStarAndAbove}
-                onChange={handleFilterChange}
-                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.fourStarAndAbove ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.fourStarAndAbove ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.fourStarAndAbove && (
-                  <svg
-                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '16px', color: '#ff6200' }}>★★★★☆</span>
-              <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>и более</span>
+                    <div style={{
+                        padding: '10px 16px', borderRadius: '10px', fontWeight: 600,
+                        textAlign: 'center', transition: 'all 0.2s ease-in-out', cursor: 'pointer',
+                        ...(filters[filterName as keyof typeof filters]
+                        ? { backgroundColor: '#ff6200', color: '#fff', border: '2px solid #ff6200' }
+                        : { backgroundColor: '#fff', color: '#333', border: '2px solid #ddd' })
+                    }}>
+                        {filterName === 'inStockOnly' && 'Только в наличии'}
+                        {filterName === 'fiveStarOnly' && 'Только 5 звёзд'}
+                        {filterName === 'fourStarAndAbove' && '4 звезды и выше'}
             </div>
           </label>
+            ))}
         </div>
-      </div>
+      </aside>
 
-      <div style={{ flexGrow: '1' }}>
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '16px' }}>
+      <main style={{ flexGrow: '1' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '28px', fontWeight: 700, color: '#333' }}>
+            Поиск: "{query}" ({totalProducts} найдено)
+          </h2>
             <select
               value={sortOrder}
               onChange={handleSortChange}
               style={{
-                padding: '10px',
-                border: '2px solid #ff6200',
-                borderRadius: '20px',
-                backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
-                cursor: 'pointer',
-                transition: 'border-color 0.3s',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+              padding: '12px 24px', border: '2px solid #ff6200', borderRadius: '25px',
+              backgroundColor: '#fff', fontSize: '15px', color: '#333',
+              cursor: 'pointer', fontWeight: 600, outline: 'none',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
+            }}
             >
               <option value="default">Сортировать</option>
               <option value="asc">По возрастанию цены</option>
               <option value="desc">По убыванию цены</option>
             </select>
           </div>
-          {filteredProducts.length === 0 && !loadingMore && (
-            <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>
-              Товары не найдены.
-            </p>
-          )}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: '32px',
-            justifyContent: 'center',
-          }}>
-            {filteredProducts.map((product, index) => (
-              <ProductCard key={`${product.id}-${index}`} product={product} />
-            ))}
+
+        {filteredProducts.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px' }}>
+            {filteredProducts.map((product) => <ProductCard key={product.id} product={product} />)}
           </div>
-          {loadingMore && (
-            <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333', marginTop: '16px' }}>
-              Загрузка...
+        ) : !loadingMore && (
+          <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333', marginTop: '40px' }}>
+            Товары не найдены.
             </p>
           )}
-          {!hasMore && filteredProducts.length > 0 && (
-            <p style={{ textAlign: 'center', fontSize: '18px', color: '#666666', marginTop: '16px' }}>
-              Больше товаров нет.
-            </p>
-          )}
+        
+        {loadingMore && <p style={{ textAlign: 'center', marginTop: '20px' }}>Загрузка...</p>}
           <div ref={observerTarget} style={{ height: '20px' }} />
-        </div>
-      </div>
+      </main>
     </div>
   );
 }

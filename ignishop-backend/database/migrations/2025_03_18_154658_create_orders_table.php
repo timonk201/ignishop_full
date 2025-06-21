@@ -15,6 +15,7 @@ class CreateOrdersTable extends Migration
             $table->decimal('total', 8, 2); // Общая сумма
             $table->string('delivery_method'); // Способ доставки
             $table->string('address')->nullable(); // Адрес (если доставка)
+            $table->integer('used_bonus_points')->nullable()->default(0); // Списанные бонусы
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent();
         });

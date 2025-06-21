@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { useFavoriteStore } from '../../store/favoriteStore';
-import { FaHeart, FaTrash, FaEdit, FaStore } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit, FaStore, FaGift } from 'react-icons/fa';
+import Link from 'next/link';
 
 interface User {
   id?: number;
@@ -13,6 +14,7 @@ interface User {
   email: string;
   avatar?: string;
   is_admin?: boolean;
+  bonus_points: number;
 }
 
 interface Product {
@@ -378,6 +380,65 @@ export default function ProfilePage() {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px', backgroundColor: '#FFFFFF', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', minHeight: '600px' }}>
       <h2 style={{ fontSize: '36px', fontWeight: 'bold', color: '#003087', marginBottom: '32px', textAlign: 'center' }}>Профиль</h2>
+      {/* Бонусы — теперь сразу после заголовка */}
+      {user && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#fff8f0',
+          borderRadius: 16,
+          boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
+          padding: '24px 32px',
+          margin: '24px auto 32px auto',
+          maxWidth: 400,
+          gap: 16,
+        }}>
+          <FaGift size={40} color="#ff6200" />
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 600, color: '#ff6200' }}>{user.bonus_points} бонусных баллов</div>
+            <div style={{ color: '#888', fontSize: 15 }}>Ваши бонусные баллы</div>
+          </div>
+        </div>
+      )}
+      
+      {/* Кнопка ежемесячных заданий */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+        <Link href="/game" style={{ textDecoration: 'none' }}>
+          <button
+            style={{
+              padding: '16px 32px',
+              fontSize: '16px',
+              fontWeight: 700,
+              color: '#fff',
+              background: 'linear-gradient(135deg, #ff6200 0%, #ff9d2f 50%, #ff6200 100%)',
+              border: 'none',
+              borderRadius: '50px',
+              cursor: 'pointer',
+              boxShadow: '0 6px 20px rgba(255, 98, 0, 0.25)',
+              transition: 'all 0.3s ease-in-out',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '240px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.transform = 'translateY(-3px) scale(1.03)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 98, 0, 0.35)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #ff9d2f 0%, #ff6200 50%, #ff9d2f 100%)';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.transform = 'translateY(0) scale(1)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 98, 0, 0.25)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, #ff6200 0%, #ff9d2f 50%, #ff6200 100%)';
+            }}
+          >
+            Ежемесячные задания
+          </button>
+        </Link>
+      </div>
       <div style={{ padding: '32px', backgroundColor: '#F9F9F9', borderRadius: '8px' }}>
         {editMode ? (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

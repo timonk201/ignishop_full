@@ -58,4 +58,22 @@ class UserController extends Controller
             'products_count' => $user->products()->count()
         ]);
     }
+
+    public function getBonusPoints(Request $request)
+    {
+        $user = $request->user();
+        return response()->json(['bonus_points' => $user->bonus_points]);
+    }
+
+    public function addBonusPoints(Request $request)
+    {
+        $user = $request->user();
+        $reward = (int)($request->input('task.reward', 0));
+        if ($reward > 0) {
+            $user->bonus_points += $reward;
+            $user->save();
+            return response()->json(['success' => true, 'bonus_points' => $user->bonus_points]);
+        }
+        return response()->json(['success' => false, 'message' => 'Некорректная награда'], 400);
+    }
 }

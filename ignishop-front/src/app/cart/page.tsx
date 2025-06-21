@@ -6,6 +6,7 @@ import { useCartStore } from '../../store/cartStore';
 import { useUser } from '../context/UserContext';
 import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
+import { FaGift, FaShoppingCart, FaMoneyBillWave } from 'react-icons/fa';
 
 export interface Product {
   id: number;
@@ -40,6 +41,7 @@ export default function CartPage() {
   const [house, setHouse] = useState('');
   const [apartment, setApartment] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  const [usedBonus, setUsedBonus] = useState(0);
   const router = useRouter();
 
   const DELIVERY_COST = 30;
@@ -83,6 +85,13 @@ export default function CartPage() {
   const totalPrice = activeCart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const finalPrice = deliveryMethod === 'delivery' ? totalPrice + DELIVERY_COST : totalPrice;
 
+  const maxBonus = Math.min(
+    Math.floor(finalPrice * 0.9),
+    user?.bonus_points ?? 0
+  );
+  const payWithBonus = maxBonus > 0;
+  const toPay = finalPrice - usedBonus;
+
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -109,6 +118,7 @@ export default function CartPage() {
       address: deliveryMethod === 'delivery'
         ? `${country}, ${city}, ${street}, д. ${house}${apartment ? ', кв. ' + apartment : ''}, ${postalCode}`
         : null,
+      used_bonus_points: usedBonus,
     };
 
     try {
@@ -118,6 +128,15 @@ export default function CartPage() {
       console.log('Заказ сохранен на сервере:', response.data);
       await clearCart(user);
       alert('Заказ успешно оформлен!');
+      if (user) {
+        await axios.get('http://localhost:8000/api/user', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }).then(res => {
+          if (res.data && typeof res.data.bonus_points === 'number') {
+            user.bonus_points = res.data.bonus_points;
+          }
+        });
+      }
       router.push('/orders');
     } catch (error: any) {
       console.error('Ошибка при сохранении заказа:', error);
@@ -128,7 +147,43 @@ export default function CartPage() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
-      <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#333333', marginBottom: '24px' }}>Корзина</h2>
+      <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#ff6200', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <FaShoppingCart size={36} style={{ color: '#ff6200' }} /> Корзина
+      </h2>
+      {payWithBonus && (
+        <div style={{
+          background: '#fff8f0',
+          borderRadius: 16,
+          boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
+          padding: '20px 32px',
+          margin: '0 auto 24px auto',
+          maxWidth: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 20,
+        }}>
+          <FaGift size={32} color="#ff6200" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, color: '#ff6200', fontWeight: 600, marginBottom: 4 }}>
+              Ваши бонусы: {user?.bonus_points}
+            </div>
+            <div style={{ color: '#888', fontSize: 15, marginBottom: 8 }}>
+              Можно оплатить до <b>{maxBonus}</b> бонусов (макс. 90% суммы заказа)
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={maxBonus}
+              value={usedBonus}
+              onChange={e => setUsedBonus(Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+            <div style={{ color: '#333', fontSize: 16, marginTop: 4 }}>
+              Использовать бонусов: <b>{usedBonus}</b>
+            </div>
+          </div>
+        </div>
+      )}
       {activeCart.length === 0 ? (
         <p style={{ textAlign: 'center', fontSize: '18px', color: '#333333' }}>Корзина пуста</p>
       ) : (
@@ -138,15 +193,16 @@ export default function CartPage() {
               <div
                 key={item.id}
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  background: '#fff',
+                  borderRadius: 16,
+                  boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
                   padding: '16px',
                   marginBottom: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   transition: 'transform 0.3s',
+                  borderLeft: '6px solid #ff6200',
                 }}
                 onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
                 onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
@@ -154,9 +210,9 @@ export default function CartPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   {item.image && (
                     <img
-                      src={item.image.startsWith('http') ? item.image : `http://localhost:8000/storage/${item.image}`}
+                      src={item.image.startsWith('http') ? item.image : `http://localhost:8000${item.image.startsWith('/') ? '' : '/storage/'}${item.image}`}
                       alt={item.name}
-                      style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }}
+                      style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #ff6200' }}
                       onError={(e) => {
                         console.error(`Failed to load image for ${item.name}: ${item.image}`);
                         (e.target as HTMLImageElement).style.display = 'none';
@@ -198,15 +254,15 @@ export default function CartPage() {
                     onClick={() => removeFromCart(item.id, user)}
                     style={{
                       backgroundColor: '#666666',
-                      color: '#FFFFFF',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
+                      color: '#fff',
                       border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
                       cursor: 'pointer',
-                      transition: 'background-color 0.3s',
+                      fontWeight: 600,
+                      fontSize: 16,
+                      transition: 'background 0.2s',
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4A4A4A')}
-                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#666666')}
                   >
                     Удалить
                   </button>
@@ -214,145 +270,114 @@ export default function CartPage() {
               </div>
             ))}
           </div>
-
-          <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#333333' }}>
-              Общая сумма: <span style={{ color: '#FF6200' }}>{finalPrice.toFixed(2)} $</span>
-            </p>
-            {deliveryMethod === 'delivery' && (
-              <p style={{ color: '#666', fontSize: '16px', marginTop: '8px' }}>Включая доставку: <span style={{ color: '#FF6200' }}>{DELIVERY_COST.toFixed(2)} $</span></p>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 18,
+            marginTop: 18,
+            background: '#fff8f0',
+            borderRadius: 12,
+            padding: '18px 28px',
+            boxShadow: '0 2px 8px rgba(255,98,0,0.06)',
+            fontSize: 20,
+            fontWeight: 600,
+            color: '#333',
+            maxWidth: 600,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}>
+            <FaMoneyBillWave size={32} color="#ff6200" />
+            <span>Сумма заказа: {finalPrice.toFixed(2)}$</span>
+            {payWithBonus && usedBonus > 0 && (
+              <span style={{ color: '#ff6200', fontWeight: 700, fontSize: 18 }}>
+                -{usedBonus}$ бонусами
+              </span>
             )}
-          </div>
-
-          <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', maxWidth: '400px', margin: '0 auto' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#333333', marginBottom: '16px' }}>Оформление заказа</h3>
-            <form onSubmit={handleOrderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Способ получения:</label>
-                <select
-                  value={deliveryMethod}
-                  onChange={(e) => setDeliveryMethod(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px',
-                    outline: 'none',
-                    color: '#333333',
-                    fontSize: '14px',
-                  }}
-                >
-                  <option value="pickup">Самовывоз</option>
-                  <option value="delivery">Доставка</option>
-                </select>
-              </div>
-              {deliveryMethod === 'delivery' && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '12px',
-                    marginTop: '8px',
-                    background: '#FFF8F3',
-                    border: '2px solid #FF6200',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    maxWidth: '100%',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Страна</label>
-                    <select
-                      value={country}
-                      onChange={e => setCountry(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                      required
-                    >
-                      <option value="">Выберите страну</option>
-                      {countryOptions.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Город</label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={e => setCity(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                      required
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Улица</label>
-                    <input
-                      type="text"
-                      value={street}
-                      onChange={e => setStreet(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                      required
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Дом</label>
-                    <input
-                      type="text"
-                      value={house}
-                      onChange={e => setHouse(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                      required
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Квартира (необязательно)</label>
-                    <input
-                      type="text"
-                      value={apartment}
-                      onChange={e => setApartment(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <label style={{ fontSize: '14px', color: '#666666', marginBottom: '4px' }}>Почтовый индекс</label>
-                    <input
-                      type="text"
-                      value={postalCode}
-                      onChange={e => setPostalCode(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '15px', minWidth: 0 }}
-                      required
-                    />
-                  </div>
-                  <style>{`
-                    @media (max-width: 700px) {
-                      .address-grid {
-                        grid-template-columns: 1fr !important;
-                      }
-                    }
-                  `}</style>
-                </div>
-              )}
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#FF6200',
-                  color: '#FFFFFF',
-                  padding: '12px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: 'semibold',
-                  transition: 'background-color 0.3s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#FF6200')}
-              >
-                Оформить заказ
-              </button>
-            </form>
+            <span style={{ color: '#003087', fontWeight: 700, fontSize: 22, marginLeft: 'auto' }}>
+              К оплате: {toPay.toFixed(2)}$
+            </span>
           </div>
         </>
+      )}
+
+      {activeCart.length > 0 && (
+        <form
+          onSubmit={handleOrderSubmit}
+          style={{
+            background: '#fff',
+            borderRadius: 16,
+            boxShadow: '0 2px 8px rgba(255,98,0,0.08)',
+            padding: '24px',
+            marginTop: '24px',
+          }}
+        >
+          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff6200', marginBottom: '16px' }}>
+            Оформление заказа
+          </h3>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '16px', color: '#333333' }}>Способ получения:</label>
+            <select
+              value={deliveryMethod}
+              onChange={(e) => setDeliveryMethod(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                fontSize: '16px',
+                outline: 'none',
+                color: '#333333',
+              }}
+            >
+              <option value="pickup">Самовывоз</option>
+              <option value="delivery">Доставка</option>
+            </select>
+          </div>
+
+          {deliveryMethod === 'delivery' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <input
+                type="text"
+                placeholder="Страна"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+                style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
+                list="country-options"
+              />
+              <datalist id="country-options">
+                {countryOptions.map(c => <option key={c} value={c} />)}
+              </datalist>
+
+              <input type="text" placeholder="Город" value={city} onChange={(e) => setCity(e.target.value)} required style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" placeholder="Улица" value={street} onChange={(e) => setStreet(e.target.value)} required style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" placeholder="Дом" value={house} onChange={(e) => setHouse(e.target.value)} required style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" placeholder="Квартира" value={apartment} onChange={(e) => setApartment(e.target.value)} style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" placeholder="Почтовый индекс" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} required style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }} />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            style={{
+              width: '100%',
+              padding: '16px',
+              backgroundColor: '#ff6200',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'background-color 0.3s',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ff6200')}
+          >
+            <FaMoneyBillWave style={{ marginRight: 8 }} />
+            Оформить заказ
+          </button>
+        </form>
       )}
     </div>
   );

@@ -31,7 +31,7 @@ class UnapprovedProductSeeder extends Seeder
                 'description' => 'Новый смартфон с камерой Leica.',
                 'price' => 699.99,
                 'stock' => 15,
-                'image' => null,
+                'image' => 'unapprovedProductsSeeder/xiaomi_13.jpg',
             ],
             [
                 'name' => 'Умные часы Apple Watch',
@@ -40,7 +40,7 @@ class UnapprovedProductSeeder extends Seeder
                 'description' => 'Последняя модель умных часов.',
                 'price' => 399.99,
                 'stock' => 20,
-                'image' => null,
+                'image' => 'unapprovedProductsSeeder/apple_watch.png',
             ],
             // Одежда
             [
@@ -50,7 +50,7 @@ class UnapprovedProductSeeder extends Seeder
                 'description' => 'Теплая зимняя куртка с мехом.',
                 'price' => 199.99,
                 'stock' => 25,
-                'image' => null,
+                'image' => 'unapprovedProductsSeeder/winter_coat.jpg',
             ],
             [
                 'name' => 'Платье вечернее',

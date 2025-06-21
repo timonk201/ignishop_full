@@ -10,6 +10,7 @@ interface User {
   name: string;
   email: string;
   is_admin: boolean;
+  bonus_points: number;
 }
 
 interface UserContextType {

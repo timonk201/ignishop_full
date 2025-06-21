@@ -32,6 +32,11 @@ class ProductController extends Controller
                 });
             }
 
+            // Фильтрация по наличию
+            if ($request->boolean('inStockOnly')) {
+                $query->where('stock', '>', 0);
+            }
+
             // Поиск по названию, категории, подкатегории и описанию
             if ($request->has('search')) {
                 $searchTerm = $request->input('search');
@@ -84,7 +89,7 @@ class ProductController extends Controller
             }
 
             // Пагинация
-            $perPage = $request->input('per_page', 8); // По умолчанию 8 товаров на страницу
+            $perPage = $request->input('per_page', 9); // По умолчанию 9 товаров на страницу
             $products = $query->paginate($perPage);
 
             // Добавляем среднюю оценку и общее количество отзывов

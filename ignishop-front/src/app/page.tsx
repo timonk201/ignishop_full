@@ -38,8 +38,6 @@ interface Product {
 
 interface Banner {
   id: number;
-  title: string;
-  description: string;
   image: string;
   link: string;
 }
@@ -70,7 +68,7 @@ export default function Home() {
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const isFetching = useRef(false);
 
-  const perPage = 8;
+  const perPage = 9;
 
   // Состояние для баннеров
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
@@ -80,24 +78,18 @@ export default function Home() {
   const banners: Banner[] = [
     {
       id: 1,
-      title: 'Ноутбуки со скидкой до 50%!',
-      description: 'Обновите свой гаджет прямо сейчас!',
-      image: '/banners/laptop.jpg',
-      link: '/category/electronics?subcategory=Ноутбуки',
+      image: '/banners/LIning.png',
+      link: '/category/shoes?subcategory=Спортивная%20обувь',
     },
     {
       id: 2,
-      title: 'Сезонная распродажа одежды!',
-      description: 'Скидки до 70% на модные коллекции!',
-      image: '/banners/clothing.jpg',
-      link: '/category/clothing',
+      image: '/banners/AUto.png',
+      link: '/category/auto',
     },
     {
       id: 3,
-      title: 'Спортивная одежда для активного отдыха!',
-      description: 'Подготовьтесь к лету с нами!',
-      image: '/banners/sports.jpg',
-      link: '/category/sports?subcategory=Спортивная одежда',
+      image: '/banners/xiaomi.png',
+      link: '/category/electronics?subcategory=Смартфоны',
     },
   ];
 
@@ -125,7 +117,7 @@ export default function Home() {
     setLoadingMore(false);
     setIsFirstPageLoaded(false);
     fetchProducts(1, true);
-  }, [filters.category, filters.subcategory, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder]);
+  }, [filters.category, filters.subcategory, filters.fiveStarOnly, filters.fourStarAndAbove, sortOrder, filters.inStockOnly]);
 
   const fetchProducts = async (pageNum: number, reset = false) => {
     if (isFetching.current || (!reset && !hasMore)) return;
@@ -136,6 +128,7 @@ export default function Home() {
       const params = {
         category: filters.category || undefined,
         subcategory: filters.subcategory || undefined,
+        inStockOnly: filters.inStockOnly,
         fiveStarOnly: filters.fiveStarOnly,
         fourStarAndAbove: filters.fourStarAndAbove,
         sort: sortOrder !== 'default' ? sortOrder : undefined,
@@ -143,17 +136,16 @@ export default function Home() {
         per_page: perPage,
       };
       const response = await axios.get('http://localhost:8000/api/products', { params });
-      console.log('Fetched products:', response.data);
       const fetchedProducts = response.data.data.map((product: Product) => ({
         ...product,
-        price: parseFloat(product.price as string),
+        price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
       }));
       setTotalProducts(response.data.total || 0);
 
       setProducts((prev) => {
         const newProducts = reset ? fetchedProducts : [...prev, ...fetchedProducts];
-        return newProducts.filter((item, index, self) =>
-          index === self.findIndex((t) => t.id === item.id)
+        return newProducts.filter((item: Product, index: number, self: Product[]) =>
+          index === self.findIndex((t: Product) => t.id === item.id)
         );
       });
 
@@ -181,13 +173,8 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
-
-  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        console.log('Observer triggered:', { isIntersecting: entries[0].isIntersecting, hasMore, loadingMore, isFetching: isFetching.current, isFirstPageLoaded });
         if (entries[0].isIntersecting && hasMore && !loadingMore && !isFetching.current && isFirstPageLoaded) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
@@ -212,12 +199,11 @@ export default function Home() {
   }, [hasMore, loadingMore, isFirstPageLoaded]);
 
   const filteredProducts = products
-    .filter((product) => {
+    .filter((product: Product) => {
       const matchesPrice = product.price >= filters.minPrice && product.price <= filters.maxPrice;
-      const matchesStock = !filters.inStockOnly || product.stock > 0;
-      return matchesPrice && matchesStock;
+      return matchesPrice;
     })
-    .sort((a, b) => {
+    .sort((a: Product, b: Product) => {
       if (sortOrder === 'asc') return a.price - b.price;
       if (sortOrder === 'desc') return b.price - a.price;
       return 0;
@@ -226,7 +212,7 @@ export default function Home() {
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type } = e.target;
     let newMinPrice = filters.minPrice;
     let newMaxPrice = filters.maxPrice;
 
@@ -257,10 +243,15 @@ export default function Home() {
         minPrice: newMinPrice,
         maxPrice: newMaxPrice,
       }));
+    } else if (type === 'checkbox' && 'checked' in e.target) {
+      setFilters((prev) => ({
+        ...prev,
+        [name]: (e.target as HTMLInputElement).checked,
+      }));
     } else {
       setFilters((prev) => ({
         ...prev,
-        [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) || 0 : value,
+        [name]: type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
   };
@@ -319,15 +310,16 @@ export default function Home() {
             value={filters.category}
             onChange={handleFilterChange}
             style={{
-              padding: '10px',
+              padding: '10px 16px',
               border: '2px solid #ff6200',
-              borderRadius: '20px',
+              borderRadius: '25px',
               width: '100%',
               backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
+              fontSize: '15px',
+              color: '#333',
               cursor: 'pointer',
-              transition: 'border-color 0.3s',
+              outline: 'none',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
             }}
             onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
             onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
@@ -350,15 +342,16 @@ export default function Home() {
               value={filters.subcategory}
               onChange={handleFilterChange}
               style={{
-                padding: '10px',
+                padding: '10px 16px',
                 border: '2px solid #ff6200',
-                borderRadius: '20px',
+                borderRadius: '25px',
                 width: '100%',
                 backgroundColor: '#fff',
-                fontSize: '14px',
-                color: '#333333',
+                fontSize: '15px',
+                color: '#333',
                 cursor: 'pointer',
-                transition: 'border-color 0.3s',
+                outline: 'none',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
@@ -386,15 +379,16 @@ export default function Home() {
               onChange={handleFilterChange}
               min="0"
               style={{
-                padding: '8px',
+                padding: '10px',
                 border: '2px solid #ff6200',
-                borderRadius: '20px 0 0 20px',
+                borderRadius: '25px',
                 width: '100px',
-                fontSize: '14px',
-                color: '#333333',
+                fontSize: '15px',
+                color: '#333',
                 outline: 'none',
                 textAlign: 'center',
-                transition: 'border-color 0.3s',
+                backgroundColor: '#fff',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
@@ -406,15 +400,16 @@ export default function Home() {
               onChange={handleFilterChange}
               min={filters.minPrice}
               style={{
-                padding: '8px',
+                padding: '10px',
                 border: '2px solid #ff6200',
-                borderRadius: '0 20px 20px 0',
+                borderRadius: '25px',
                 width: '100px',
-                fontSize: '14px',
-                color: '#333333',
+                fontSize: '15px',
+                color: '#333',
                 outline: 'none',
                 textAlign: 'center',
-                transition: 'border-color 0.3s',
+                backgroundColor: '#fff',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
               onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
@@ -425,139 +420,86 @@ export default function Home() {
               range
               min={0}
               max={Math.max(...products.map((p) => p.price), 1000)}
-              value={[filters.minPrice, filters.maxPrice]}
+              value={Array.isArray([filters.minPrice, filters.maxPrice]) ? [filters.minPrice, filters.maxPrice] : [0, 1000]}
               onChange={(value) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  minPrice: value[0],
-                  maxPrice: value[1],
-                }));
+                const arr = Array.isArray(value) ? value as number[] : [0, 1000];
+                setFilters((prev) => ({ ...prev, minPrice: arr[0], maxPrice: arr[1] }));
               }}
-              railStyle={{ backgroundColor: '#e0e0e0', height: '6px' }}
-              trackStyle={[{ backgroundColor: '#ff0000', height: '6px' }]}
+              railStyle={{ backgroundColor: '#e0e0e0', height: 8 }}
+              trackStyle={[{ backgroundColor: '#ff6200', height: 8 }]}
               handleStyle={[
-                { borderColor: '#ff0000', backgroundColor: '#fff', borderWidth: '2px', width: '16px', height: '16px', marginTop: '-5px' },
-                { borderColor: '#ff0000', backgroundColor: '#fff', borderWidth: '2px', width: '16px', height: '16px', marginTop: '-5px' },
+                { borderColor: '#ff6200', backgroundColor: '#ff6200', borderWidth: 3, width: 20, height: 20, marginTop: -6 },
+                { borderColor: '#ff6200', backgroundColor: '#ff6200', borderWidth: 3, width: 20, height: 20, marginTop: -6 },
               ]}
               style={{ width: '100%' }}
             />
           </div>
         </div>
-        <div>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
-              <input
-                type="checkbox"
-                name="inStockOnly"
-                checked={filters.inStockOnly}
-                onChange={handleFilterChange}
-                style={{
-                  position: 'absolute',
-                  opacity: 0,
-                  width: '16px',
-                  height: '16px',
-                  cursor: 'pointer',
-                }}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.inStockOnly ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.inStockOnly ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.inStockOnly && (
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      top: '1px',
-                      left: '1px',
-                      width: '12px',
-                      height: '12px',
-                      fill: 'none',
-                      stroke: '#ffffff',
-                      strokeWidth: '2',
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                    }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <label>
+            <input
+              type="checkbox"
+              name="inStockOnly"
+              checked={filters.inStockOnly}
+              onChange={handleFilterChange}
+              style={{ display: 'none' }}
+            />
+            <div style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              fontWeight: 600,
+              textAlign: 'center',
+              transition: 'all 0.2s ease-in-out',
+              cursor: 'pointer',
+              ...(filters.inStockOnly
+                ? { backgroundColor: '#ff6200', color: '#fff', border: '2px solid #ff6200' }
+                : { backgroundColor: '#fff', color: '#333', border: '2px solid #ddd' })
+            }}>
+              Только в наличии
             </div>
-            Только в наличии
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
-              <input
-                type="checkbox"
-                name="fiveStarOnly"
-                checked={filters.fiveStarOnly}
-                onChange={handleFilterChange}
-                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.fiveStarOnly ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.fiveStarOnly ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.fiveStarOnly && (
-                  <svg
-                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
+          <label>
+            <input
+              type="checkbox"
+              name="fiveStarOnly"
+              checked={filters.fiveStarOnly}
+              onChange={handleFilterChange}
+              style={{ display: 'none' }}
+            />
+            <div style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              fontWeight: 600,
+              textAlign: 'center',
+              transition: 'all 0.2s ease-in-out',
+              cursor: 'pointer',
+              ...(filters.fiveStarOnly
+                ? { backgroundColor: '#ff6200', color: '#fff', border: '2px solid #ff6200' }
+                : { backgroundColor: '#fff', color: '#333', border: '2px solid #ddd' })
+            }}>
+              Только 5 звёзд
             </div>
-            Только с оценкой 5 звёзд
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontWeight: 'bold', color: '#333333', cursor: 'pointer' }}>
-            <div style={{ position: 'relative', width: '16px', height: '16px', marginRight: '8px' }}>
-              <input
-                type="checkbox"
-                name="fourStarAndAbove"
-                checked={filters.fourStarAndAbove}
-                onChange={handleFilterChange}
-                style={{ position: 'absolute', opacity: 0, width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${filters.fourStarAndAbove ? '#ff6200' : '#666666'}`,
-                  borderRadius: '4px',
-                  backgroundColor: filters.fourStarAndAbove ? '#ff6200' : 'transparent',
-                  transition: 'background-color 0.3s, border-color 0.3s',
-                }}
-              >
-                {filters.fourStarAndAbove && (
-                  <svg
-                    style={{ position: 'absolute', top: '1px', left: '1px', width: '12px', height: '12px', fill: 'none', stroke: '#ffffff', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }}
-                    viewBox="0 0 24 24"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '16px', color: '#ff6200' }}>★★★★☆</span>
-              <span style={{ fontSize: '14px', color: '#333333', marginLeft: '4px' }}>и более</span>
+          <label>
+            <input
+              type="checkbox"
+              name="fourStarAndAbove"
+              checked={filters.fourStarAndAbove}
+              onChange={handleFilterChange}
+              style={{ display: 'none' }}
+            />
+            <div style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              fontWeight: 600,
+              textAlign: 'center',
+              transition: 'all 0.2s ease-in-out',
+              cursor: 'pointer',
+              ...(filters.fourStarAndAbove
+                ? { backgroundColor: '#ff6200', color: '#fff', border: '2px solid #ff6200' }
+                : { backgroundColor: '#fff', color: '#333', border: '2px solid #ddd' })
+            }}>
+              4 звезды и выше
             </div>
           </label>
         </div>
@@ -567,207 +509,191 @@ export default function Home() {
         <div
           style={{
             position: 'relative',
-            backgroundColor: '#fffacd',
-            padding: '24px',
-            borderRadius: '8px',
             marginBottom: '24px',
             overflow: 'hidden',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           }}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div style={{ position: 'relative', width: '100%', height: '250px', overflow: 'hidden' }}>
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              paddingTop: '40%', // Aspect Ratio
+              overflow: 'hidden',
+              borderRadius: '24px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+            }}
+            onClick={() => handleBannerClick(banners[currentBannerIndex].link)}
+          >
             {banners.map((banner, index) => (
               <div
                 key={banner.id}
-                onClick={() => handleBannerClick(banner.link)}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingBottom: '24px',
-                  transform:
-                    index === currentBannerIndex
-                      ? 'translateX(0)'
-                      : slideDirection === 'left'
-                      ? `translateX(${index > currentBannerIndex ? '100%' : '-100%'})`
-                      : `translateX(${index < currentBannerIndex ? '-100%' : '100%'})`,
+                  backgroundImage: `url(${banner.image})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                   opacity: index === currentBannerIndex ? 1 : 0,
-                  transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
-                  cursor: 'pointer',
+                  transition: 'opacity 0.8s ease-in-out',
                 }}
-              >
-                <div style={{ paddingBottom: '16px' }}>
-                  <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#000000' }}>
-                    {banner.title}
-                  </h2>
-                  <p style={{ fontSize: '18px', color: '#000000' }}>{banner.description}</p>
-                  <button
-                    style={{
-                      marginTop: '16px',
-                      backgroundColor: '#ff6200',
-                      color: 'white',
-                      padding: '12px 24px',
-                      borderRadius: '20px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      minHeight: '48px',
-                      transition: 'background-color 0.3s',
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e65a00')}
-                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ff6200')}
-                  >
-                    Смотреть >
-                  </button>
-                </div>
-                <div style={{ width: '50%', height: '200px', overflow: 'hidden', borderRadius: '8px' }}>
-                  <img
-                    src={banner.image}
-                    alt={banner.title}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                    onError={(e) => (e.currentTarget.src = '/placeholder-banner.jpg')}
-                  />
-                </div>
-              </div>
+              />
             ))}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBannerClick(banners[currentBannerIndex].link);
+              }}
+              style={{
+                position: 'absolute',
+                bottom: '15%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '14px 32px',
+                fontSize: '18px',
+                fontWeight: 700,
+                color: '#fff',
+                background: 'linear-gradient(90deg, #ff6200 0%, #ff9d2f 100%)',
+                border: 'none',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.transform = 'translateX(-50%) scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.3)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.transform = 'translateX(-50%) scale(1)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
+              }}
+            >
+              Перейти к товарам
+            </button>
           </div>
-
           {/* Стрелки */}
           {isHovered && (
             <>
               <button
                 onClick={(e) => {
-                  e.preventDefault();
+                  e.stopPropagation();
                   handlePrevBanner();
                 }}
                 style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '10px',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  color: '#ff6200',
-                  transition: 'background-color 0.3s',
+                  position: 'absolute', top: '50%', left: '18px', transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: '50%',
+                  width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22, color: '#ff6200', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  zIndex: 2, transition: 'background 0.2s',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
-              >
-                ←
-              </button>
+              >&#8592;</button>
               <button
                 onClick={(e) => {
-                  e.preventDefault();
+                  e.stopPropagation();
                   handleNextBanner();
                 }}
                 style={{
-                  position: 'absolute',
-                  top: '50%',
-                  right: '10px',
-                  transform: 'translateY(-50%)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  color: '#ff6200',
-                  transition: 'background-color 0.3s',
+                  position: 'absolute', top: '50%', right: '18px', transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: '50%',
+                  width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22, color: '#ff6200', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  zIndex: 2, transition: 'background 0.2s',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)')}
-              >
-                →
-              </button>
+              >&#8594;</button>
             </>
           )}
-
           {/* Индикаторы (кружочки) */}
           <div
             style={{
-              position: 'absolute',
-              bottom: '10px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: '8px',
+              position: 'absolute', bottom: '20px', left: '50%',
+              transform: 'translateX(-50%)', display: 'flex',
+              gap: '10px', zIndex: 2,
             }}
           >
-            {banners.map((_, index) => (
+            {banners.map((_, idx) => (
               <button
-                key={index}
+                key={idx}
                 onClick={(e) => {
-                  e.preventDefault();
-                  handleDotClick(index);
+                  e.stopPropagation();
+                  handleDotClick(idx);
                 }}
                 style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: index === currentBannerIndex ? '#ff6200' : 'rgba(255, 255, 255, 0.5)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.3s',
+                  width: 12, height: 12, borderRadius: '50%',
+                  background: idx === currentBannerIndex ? '#ff6200' : 'rgba(255,255,255,0.7)',
+                  border: 'none', cursor: 'pointer', transition: 'background 0.2s',
                 }}
               />
             ))}
           </div>
-
-          <div
-            style={{
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              width: '100%',
-              height: '8px',
-              backgroundColor: '#ff0000',
-            }}
-          />
         </div>
 
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-          <select
-            value={sortOrder}
-            onChange={handleSortChange}
-            style={{
-              padding: '10px',
-              border: '2px solid #ff6200',
-              borderRadius: '20px',
-              backgroundColor: '#fff',
-              fontSize: '14px',
-              color: '#333333',
-              cursor: 'pointer',
-              transition: 'border-color 0.3s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
-            onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
-          >
-            <option value="default">Сортировать</option>
-            <option value="asc">По возрастанию цены</option>
-            <option value="desc">По убыванию цены</option>
-          </select>
+        <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <Link href="/game" style={{ textDecoration: 'none' }}>
+            <button
+              style={{
+                padding: '18px 36px',
+                fontSize: '18px',
+                fontWeight: 700,
+                color: '#fff',
+                background: 'linear-gradient(135deg, #ff6200 0%, #ff9d2f 50%, #ff6200 100%)',
+                border: 'none',
+                borderRadius: '60px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(255, 98, 0, 0.3)',
+                transition: 'all 0.3s ease-in-out',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '280px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.transform = 'translateY(-4px) scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(255, 98, 0, 0.4)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #ff9d2f 0%, #ff6200 50%, #ff9d2f 100%)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 98, 0, 0.3)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #ff6200 0%, #ff9d2f 50%, #ff6200 100%)';
+              }}
+            >
+              Ежемесячные задания
+            </button>
+          </Link>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div></div>
+            <select
+              value={sortOrder}
+              onChange={handleSortChange}
+              style={{
+                padding: '12px 24px',
+                border: '2px solid #ff6200',
+                borderRadius: '25px',
+                backgroundColor: '#fff',
+                fontSize: '15px',
+                color: '#333',
+                cursor: 'pointer',
+                fontWeight: 600,
+                outline: 'none',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#e65a00')}
+              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#ff6200')}
+            >
+              <option value="default">Сортировать</option>
+              <option value="asc">По возрастанию цены</option>
+              <option value="desc">По убыванию цены</option>
+            </select>
+          </div>
         </div>
         <div style={{
           display: 'grid',
